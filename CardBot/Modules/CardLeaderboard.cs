@@ -1,13 +1,17 @@
 ﻿using CardBot.Models;
 using Discord.WebSocket;
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 
 namespace CardBot.Modules
 {
     public class CardLeaderboard
     {
+        private static NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
+
         public int FistMeDaddy(SocketUser sender, SocketUser user, string reason, string color)
         {
             try
@@ -52,7 +56,7 @@ namespace CardBot.Modules
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
+                Logger.Error(e);
                 return 0;
             }
         }
@@ -73,7 +77,7 @@ namespace CardBot.Modules
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
+                Logger.Error(e);
                 return null;
             }
         }
@@ -94,7 +98,7 @@ namespace CardBot.Modules
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
+                Logger.Error(e);
                 return null;
             }
         }
@@ -128,7 +132,7 @@ namespace CardBot.Modules
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
+                Logger.Error(e);
                 return "That didn't work. frown :(";
             }
         }
@@ -166,39 +170,33 @@ namespace CardBot.Modules
 
         private Dictionary<string, int[]> SortScoreboard(Dictionary<string, int[]> set)
         {
-            var sorted = new Dictionary<string, int[]>();
+            var scoreboard = new Dictionary<string, int[]>();
 
-            while (sorted.Count < set.Count)
+            var scores = CalculateScores(set);
+
+            var sorted = from s in scores orderby s.Value descending select s;
+
+            foreach (var i in sorted)
             {
-                string highestUser = set.Keys.FirstOrDefault();
-                foreach (var s in set)
-                {
-                    var yellow = set[highestUser][0];
-                    var red = set[highestUser][1];
-
-                    if (red < s.Value[1])
-                    {
-                        highestUser = s.Key;
-                        red = s.Value[1];
-                        yellow = s.Value[0];
-                    }
-                    else if (red == s.Value[1])
-                    {
-                        if (yellow < s.Value[0])
-                        {
-                            highestUser = s.Key;
-                            yellow = s.Value[0];
-                        }
-                    }
-                }
-
-                sorted.Add(highestUser, new[] { set[highestUser][0], set[highestUser][1] });
-                set.Remove(highestUser);
+                scoreboard.Add(i.Key, set[i.Key]);
             }
 
-            sorted.Add(set.Keys.FirstOrDefault(), set[set.Keys.FirstOrDefault()]);
+            return scoreboard;
+        }
 
-            return sorted;
+        private Dictionary<string, int> CalculateScores(Dictionary<string, int[]> set)
+        {
+            var s = new Dictionary<string, int>();
+
+            foreach(var n in set)
+            {
+                int score = n.Value[0];
+                score += (n.Value[1] * 10);
+
+                s.Add(n.Key, score);
+            }
+
+            return s;
         }
 
         public string GetHistory(string user)
@@ -209,15 +207,23 @@ namespace CardBot.Modules
             {
                 var history = db.CardGivings.AsQueryable().Where(g => g.Degenerate.Id == db.Users.AsQueryable().Where(u => u.Name == user).Select(u => u.Id).FirstOrDefault()).ToList();
 
-                for (int count = 0; count <= 10 && count < history.Count; ++count)
+                if (history.Count > 0)
                 {
-                    var i = history[count];
+                    for (int count = 0; count <= 10 && count < history.Count; ++count)
+                    {
+                        var i = history[count];
 
-                    var color = db.Cards.AsQueryable().Where(c => c.Id == i.CardId).Select(c => c.Name).FirstOrDefault();
-                    var giver = db.Users.AsQueryable().Where(u => u.Id == i.GiverId).Select(u => u.Name).FirstOrDefault();
+                        var color = db.Cards.AsQueryable().Where(c => c.Id == i.CardId).Select(c => c.Name).FirstOrDefault();
+                        var giver = db.Users.AsQueryable().Where(u => u.Id == i.GiverId).Select(u => u.Name).FirstOrDefault();
 
-                    message += $"**{color}** card given by **{giver}** for {i.CardReason}\n";
+                        message += $"**{color}** card given by **{giver}** for {i.CardReason}\n";
+                    }
                 }
+                else
+                {
+                    message = $"{user} does not have any cards. smile :)";
+                }
+                
             }
 
             return message;

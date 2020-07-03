@@ -1,5 +1,7 @@
 ﻿using Discord;
 using Discord.Commands;
+using Discord.WebSocket;
+using Microsoft.EntityFrameworkCore.Internal;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,10 +12,14 @@ namespace CardBot.Modules
 {
     public class Commands : ModuleBase<SocketCommandContext>
     {
+        private string CardRole = "CardBot";
+
         private readonly Emoji Frown = new Emoji("😦");
         private readonly Emoji Smile = new Emoji("🙂");
 
         private CardLeaderboard Leaderboard = new CardLeaderboard();
+
+        private static NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
 
         [Command("score")]
         public async Task ShowScoreboard()
@@ -27,24 +33,11 @@ namespace CardBot.Modules
         {
             if (reason.Length < 1)
             {
-                reason = new[] { "being a trashcan" };
+                reason = new[] { "being a degenerate" };
             }
             string reasonString = string.Join(' ', reason);
 
-            await Context.Message.AddReactionAsync(Frown);
-            var mention = Context.Message.MentionedUsers.FirstOrDefault(x => x.Mention == user);
-            var sender = Context.User;
-
-            var cardCount = Leaderboard.FistMeDaddy(sender, mention, reasonString, "Yellow");
-
-            if (cardCount != 0)
-            {
-                await ReplyAsync($"{mention} now has {cardCount} yellow cards.");
-            }
-            else
-            {
-                await ReplyAsync("That didnt work. frown :(");
-            }
+            await AddCard(user, "Yellow", reasonString);
         }
 
         [Command("red")]
@@ -56,11 +49,38 @@ namespace CardBot.Modules
             }
             string reasonString = string.Join(' ', reason);
 
-            await Context.Message.AddReactionAsync(Frown);
+            await AddCard(user, "Red", reasonString);
+        }
+
+        private SocketUser GetUser(string user)
+        {
             var mention = Context.Message.MentionedUsers.FirstOrDefault(x => x.Mention == user);
+            if (mention == null)
+            {
+                var role = Context.Guild.Roles.Where(r => r.Name == CardRole).FirstOrDefault();
+                mention = Context.Guild.Users
+                    .Where(x => x.Username.Contains(user, StringComparison.CurrentCultureIgnoreCase))
+                    .Where(x => x.Roles.Contains(role))
+                    .FirstOrDefault();
+            }
+            if (mention == null)
+            {
+                var splittedString = user.Split('@');
+                user = $"{splittedString[0]}@!{splittedString[1]}";
+                mention = Context.Message.MentionedUsers.FirstOrDefault(x => x.Mention == user);
+            }
+
+            return mention;
+        }
+
+        private async Task AddCard(string user, string color, string reason) {
+            await Context.Message.AddReactionAsync(Frown);
+
+            var mention = GetUser(user);
+
             var sender = Context.User;
 
-            var cardCount = Leaderboard.FistMeDaddy(sender, mention, reasonString, "Red");
+            var cardCount = Leaderboard.FistMeDaddy(sender, mention, reason, color);
 
             if (cardCount != 0)
             {
@@ -68,6 +88,7 @@ namespace CardBot.Modules
             }
             else
             {
+                Logger.Error("Sent Message: {message}", Context.Message);
                 await ReplyAsync("That didnt work. frown :(");
             }
         }
@@ -76,7 +97,7 @@ namespace CardBot.Modules
         public async Task GetHistory(string user)
         {
             await Context.Message.AddReactionAsync(Smile);
-            var mention = Context.Message.MentionedUsers.FirstOrDefault(x => x.Mention == user);
+            var mention = GetUser(user);
 
             var reply = Leaderboard.GetHistory(mention.Username);
 

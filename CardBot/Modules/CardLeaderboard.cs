@@ -216,7 +216,7 @@ namespace CardBot.Modules
                         var color = db.Cards.AsQueryable().Where(c => c.Id == i.CardId).Select(c => c.Name).FirstOrDefault();
                         var giver = db.Users.AsQueryable().Where(u => u.Id == i.GiverId).Select(u => u.Name).FirstOrDefault();
 
-                        message += $"**{color}** card given by **{giver}** for {i.CardReason}\n";
+                        message += $"**{color}** card given by **{giver}**: {i.CardReason}\n";
                     }
                 }
                 else

@@ -84,7 +84,7 @@ namespace CardBot.Modules
 
             if (cardCount != 0)
             {
-                await ReplyAsync($"{mention} now has {cardCount} red cards.");
+                await ReplyAsync($"{mention} now has {cardCount} {color} cards.");
             }
             else
             {

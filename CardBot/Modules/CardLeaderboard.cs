@@ -199,17 +199,17 @@ namespace CardBot.Modules
             return s;
         }
 
-        public string GetHistory(string user)
+        public string GetHistory(string user, int toShow)
         {
             string message = $"History for {user}:\n";
 
             using (var db = new DataContext())
             {
-                var history = db.CardGivings.AsQueryable().Where(g => g.Degenerate.Id == db.Users.AsQueryable().Where(u => u.Name == user).Select(u => u.Id).FirstOrDefault()).ToList();
+                var history = db.CardGivings.AsQueryable().Where(g => g.Degenerate.Id == db.Users.AsQueryable().Where(u => u.Name == user).Select(u => u.Id).FirstOrDefault()).OrderByDescending(x => x.Id).ToList();
 
                 if (history.Count > 0)
                 {
-                    for (int count = 0; count <= 10 && count < history.Count; ++count)
+                    for (int count = 0; count <= toShow && count < history.Count; ++count)
                     {
                         var i = history[count];
 

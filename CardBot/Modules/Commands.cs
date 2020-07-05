@@ -94,12 +94,12 @@ namespace CardBot.Modules
         }
 
         [Command("history")]
-        public async Task GetHistory(string user)
+        public async Task GetHistory(string user, int count = 10)
         {
             await Context.Message.AddReactionAsync(Smile);
             var mention = GetUser(user);
 
-            var reply = Leaderboard.GetHistory(mention.Username);
+            var reply = Leaderboard.GetHistory(mention.Username, count);
 
             await ReplyAsync(reply);
         }

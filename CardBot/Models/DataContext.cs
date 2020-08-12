@@ -34,7 +34,8 @@ namespace CardBot.Models
     {
         public Guid Id { get; set; }
         public string CardReason { get; set; }
-
+        public DateTime GivenTime { get; set; }
+        public ulong ServerId { get; set; }
 
         public Guid GiverId { get; set; }
         public Users Giver { get; set; }

@@ -31,8 +31,14 @@ namespace CardBot.Migrations
                     b.Property<Guid>("DegenerateId")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime>("GivenTime")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid>("GiverId")
                         .HasColumnType("TEXT");
+
+                    b.Property<ulong>("ServerId")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 

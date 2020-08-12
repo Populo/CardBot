@@ -205,7 +205,10 @@ namespace CardBot.Modules
 
             using (var db = new DataContext())
             {
-                var history = db.CardGivings.AsQueryable().Where(g => g.Degenerate.Id == db.Users.AsQueryable().Where(u => u.Name == user).Select(u => u.Id).FirstOrDefault()).OrderByDescending(x => x.Id).ToList();
+                var history = db.CardGivings.AsQueryable()
+                                            .Where(g => g.Degenerate.Id == db.Users.AsQueryable()
+                                                    .Where(u => u.Name == user).Select(u => u.Id).FirstOrDefault())
+                                            .OrderByDescending(x => x.Id).ToList();
 
                 if (history.Count > 0)
                 {

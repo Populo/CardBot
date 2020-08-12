@@ -1,4 +1,5 @@
-﻿using CardBot.Models;
+﻿using CardBot.Migrations;
+using CardBot.Models;
 using Discord.WebSocket;
 using System;
 using System.Collections;
@@ -12,7 +13,7 @@ namespace CardBot.Modules
     {
         private static NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
 
-        public int FistMeDaddy(SocketUser sender, SocketUser user, string reason, string color)
+        public int FistMeDaddy(SocketUser sender, SocketUser user, string reason, string color, ulong serverId)
         {
             try
             {
@@ -46,7 +47,9 @@ namespace CardBot.Modules
                         Giver = giver,
                         DegenerateId = degenerate.Id,
                         Degenerate = degenerate,
-                        CardReason = reason
+                        CardReason = reason,
+                        ServerId = serverId,
+                        TimeStamp = DateTime.Now
                     });
 
                     db.SaveChanges();
@@ -103,13 +106,13 @@ namespace CardBot.Modules
             }
         }
 
-        public string DisplayLeaderboard()
+        public string DisplayLeaderboard(ulong serverId)
         {
             try
             {
                 using (var db = new DataContext())
                 {
-                    var all = db.CardGivings.ToList();
+                    var all = db.CardGivings.AsQueryable().Where(c => c.ServerId == serverId).ToList();
                     if (all.Count > 0)
                     {
                         var set = BuildScoreboard(all);
@@ -199,7 +202,7 @@ namespace CardBot.Modules
             return s;
         }
 
-        public string GetHistory(string user, int toShow)
+        public string GetHistory(string user, int toShow, ulong serverId)
         {
             string message = $"History for {user}:\n";
 
@@ -208,7 +211,8 @@ namespace CardBot.Modules
                 var history = db.CardGivings.AsQueryable()
                                             .Where(g => g.Degenerate.Id == db.Users.AsQueryable()
                                                     .Where(u => u.Name == user).Select(u => u.Id).FirstOrDefault())
-                                            .OrderByDescending(x => x.Id).ToList();
+                                            .Where(c => c.ServerId == serverId)
+                                            .OrderByDescending(x => x.TimeStamp).ToList();
 
                 if (history.Count > 0)
                 {

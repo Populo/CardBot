@@ -22,7 +22,8 @@ namespace CardBot.Modules
         public async Task ShowScoreboard()
         {
             await Context.Message.AddReactionAsync(Smile);
-            await ReplyAsync(Leaderboard.DisplayLeaderboard());
+            var serverId = Context.Guild.Id;
+            await ReplyAsync(Leaderboard.DisplayLeaderboard(serverId));
         }
 
         [Command("yellow")]
@@ -76,8 +77,9 @@ namespace CardBot.Modules
             var mention = GetUser(user);
 
             var sender = Context.User;
+            var serverId = Context.Guild.Id;
 
-            var cardCount = Leaderboard.FistMeDaddy(sender, mention, reason, color);
+            var cardCount = Leaderboard.FistMeDaddy(sender, mention, reason, color, serverId);
 
             if (cardCount != 0)
             {
@@ -95,8 +97,9 @@ namespace CardBot.Modules
         {
             await Context.Message.AddReactionAsync(Smile);
             var mention = GetUser(user);
+            var serverId = Context.Guild.Id;
 
-            var reply = Leaderboard.GetHistory(mention.Username, count);
+            var reply = Leaderboard.GetHistory(mention.Username, count, serverId);
 
             await ReplyAsync(reply);
         }

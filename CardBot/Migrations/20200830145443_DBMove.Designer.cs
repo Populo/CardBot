@@ -9,8 +9,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CardBot.Migrations
 {
     [DbContext(typeof(DataContext))]
-    [Migration("20200812214305_DateandServerId")]
-    partial class DateandServerId
+    [Migration("20200830145443_DBMove")]
+    partial class DBMove
     {
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
@@ -33,14 +33,14 @@ namespace CardBot.Migrations
                     b.Property<Guid>("DegenerateId")
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime>("GivenTime")
-                        .HasColumnType("TEXT");
-
                     b.Property<Guid>("GiverId")
                         .HasColumnType("TEXT");
 
                     b.Property<ulong>("ServerId")
                         .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("TimeStamp")
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 

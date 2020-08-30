@@ -13,7 +13,7 @@ namespace CardBot.Models
         {
             if (!optionsBuilder.IsConfigured)
             {
-                optionsBuilder.UseSqlite(@"Data Source=Data\Database.db");
+                optionsBuilder.UseSqlite(@"Data Source=Database.db");
             }
         }
     }

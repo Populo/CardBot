@@ -72,7 +72,26 @@ namespace CardBot.Modules
         }
 
         private async Task AddCard(string user, string color, string reason) {
-            await Context.Message.AddReactionAsync(Frown);
+            IEmote[] emotes = new IEmote[2];
+            emotes[0] = Frown;
+
+            IEmote emoteYellow, emoteRed;
+
+            if (Context.Guild.Name == "No U Topia")
+            {
+                // get emojis
+                emoteYellow = Context.Guild.Emotes.Where(e => e.Name.Contains("yellowCard")).First();
+                emoteRed = Context.Guild.Emotes.Where(e => e.Name.Contains("redCard")).First();
+            }
+            else
+            {
+                emoteYellow = new Emoji("🟨"); // :yellow_square:
+                emoteRed = new Emoji("🟥"); // :red_square:
+            }
+            
+
+            emotes[1] = color == "Red" ? emoteRed : emoteYellow;
+            await Context.Message.AddReactionsAsync(emotes);
 
             var mention = GetUser(user);
 

@@ -34,6 +34,12 @@ namespace CardBot.Migrations
                     b.Property<Guid>("GiverId")
                         .HasColumnType("TEXT");
 
+                    b.Property<ulong>("ServerId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("TimeStamp")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CardId");

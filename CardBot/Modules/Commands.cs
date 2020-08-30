@@ -1,11 +1,8 @@
 ﻿using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
-using Microsoft.EntityFrameworkCore.Internal;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace CardBot.Modules
@@ -25,7 +22,8 @@ namespace CardBot.Modules
         public async Task ShowScoreboard()
         {
             await Context.Message.AddReactionAsync(Smile);
-            await ReplyAsync(Leaderboard.DisplayLeaderboard());
+            var serverId = Context.Guild.Id;
+            await ReplyAsync(Leaderboard.DisplayLeaderboard(serverId));
         }
 
         [Command("yellow")]
@@ -74,13 +72,33 @@ namespace CardBot.Modules
         }
 
         private async Task AddCard(string user, string color, string reason) {
-            await Context.Message.AddReactionAsync(Frown);
+            IEmote[] emotes = new IEmote[2];
+            emotes[0] = Frown;
+
+            IEmote emoteYellow, emoteRed;
+
+            if (Context.Guild.Name == "No U Topia")
+            {
+                // get emojis
+                emoteYellow = Context.Guild.Emotes.Where(e => e.Name.Contains("yellowCard")).First();
+                emoteRed = Context.Guild.Emotes.Where(e => e.Name.Contains("redCard")).First();
+            }
+            else
+            {
+                emoteYellow = new Emoji("🟨"); // :yellow_square:
+                emoteRed = new Emoji("🟥"); // :red_square:
+            }
+            
+
+            emotes[1] = color == "Red" ? emoteRed : emoteYellow;
+            await Context.Message.AddReactionsAsync(emotes);
 
             var mention = GetUser(user);
 
             var sender = Context.User;
+            var serverId = Context.Guild.Id;
 
-            var cardCount = Leaderboard.FistMeDaddy(sender, mention, reason, color);
+            var cardCount = Leaderboard.FistMeDaddy(sender, mention, reason, color, serverId);
 
             if (cardCount != 0)
             {
@@ -98,8 +116,9 @@ namespace CardBot.Modules
         {
             await Context.Message.AddReactionAsync(Smile);
             var mention = GetUser(user);
+            var serverId = Context.Guild.Id;
 
-            var reply = Leaderboard.GetHistory(mention.Username, count);
+            var reply = Leaderboard.GetHistory(mention.Username, count, serverId);
 
             await ReplyAsync(reply);
         }

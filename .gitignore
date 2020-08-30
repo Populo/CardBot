@@ -1,4 +1,6 @@
-﻿
+﻿Data/
+
+
 # Created by https://www.toptal.com/developers/gitignore/api/visualstudio,visualstudiocode,windows,dotnetcore
 # Edit at https://www.toptal.com/developers/gitignore?templates=visualstudio,visualstudiocode,windows,dotnetcore
 
@@ -406,3 +408,5 @@ MigrationBackup/
 
 # End of https://www.toptal.com/developers/gitignore/api/visualstudio,visualstudiocode,windows,dotnetcore
 CardBot/Properties/launchSettings.json
+
+*.db

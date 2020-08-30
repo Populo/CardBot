@@ -13,7 +13,7 @@ namespace CardBot.Models
         {
             if (!optionsBuilder.IsConfigured)
             {
-                optionsBuilder.UseSqlite(@"Data Source=Data\Database.db");
+                optionsBuilder.UseSqlite(@"Data Source=Database.db");
             }
         }
     }
@@ -34,7 +34,8 @@ namespace CardBot.Models
     {
         public Guid Id { get; set; }
         public string CardReason { get; set; }
-
+        public DateTime TimeStamp { get; set; }
+        public ulong ServerId { get; set; }
 
         public Guid GiverId { get; set; }
         public Users Giver { get; set; }

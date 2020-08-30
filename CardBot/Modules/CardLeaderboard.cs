@@ -1,5 +1,4 @@
-﻿using CardBot.Migrations;
-using CardBot.Models;
+﻿using CardBot.Models;
 using Discord.WebSocket;
 using System;
 using System.Collections;

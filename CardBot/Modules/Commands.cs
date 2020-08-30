@@ -77,7 +77,7 @@ namespace CardBot.Modules
 
             IEmote emoteYellow, emoteRed;
 
-            if (Context.Guild.Name == "No U Topia")
+            if (Context.Guild.Id == 140642236978167808) // no u topia
             {
                 // get emojis
                 emoteYellow = Context.Guild.Emotes.Where(e => e.Name.Contains("yellowCard")).First();

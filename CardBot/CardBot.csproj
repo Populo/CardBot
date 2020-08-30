@@ -9,13 +9,6 @@
 
   <ItemGroup>
     <None Remove="Database.db" />
-    <None Remove="Data\Database.db" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="Data\Database.db">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </EmbeddedResource>
   </ItemGroup>
 
   <ItemGroup>
@@ -31,7 +24,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Resource Include="Data\Database.db" />
+    <Resource Include="Database.db" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Program.cs">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Compile>
   </ItemGroup>
 
 </Project>

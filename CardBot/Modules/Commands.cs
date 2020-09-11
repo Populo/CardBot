@@ -1,8 +1,10 @@
-﻿using Discord;
+﻿using CardBot.Models;
+using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
 using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace CardBot.Modules
@@ -17,6 +19,45 @@ namespace CardBot.Modules
         private CardLeaderboard Leaderboard = new CardLeaderboard();
 
         private static NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
+
+        [Command("challenge")]
+        public async Task ChallengeCard(string user, string change)
+        {
+            CardChallengeChanges challenge;
+            if (change.Equals("yellow")) challenge = CardChallengeChanges.YELLOW;
+            else if (change.Equals("red")) challenge = CardChallengeChanges.RED;
+            else if (change.Equals("delete")) challenge = CardChallengeChanges.REMOVE;
+            else
+            {
+                await ReplyAsync("Valid options are yellow, red, or delete");
+                return;
+            }
+
+            var user1 = GetUser(user);
+            CardGivings card;
+
+            using (DataContext db = new DataContext())
+            {
+                card = db.CardGivings.AsQueryable()
+                    .Where(c => c.DegenerateId.Equals(db.Users.AsQueryable().Where(u => u.Name == user).Select(u => u.Id).First()))
+                    .OrderBy(c => c.TimeStamp).First();
+
+                if ((challenge == CardChallengeChanges.YELLOW && card.Card.Name == "Yellow") || (challenge == CardChallengeChanges.RED && card.Card.Name == "Red"))
+                {
+                    await ReplyAsync("You cannot change the card to the same color");
+                    return;
+                }
+            }
+
+            string proposal = challenge == CardChallengeChanges.REMOVE ? "remove the card" : challenge == CardChallengeChanges.RED ? "convert the yellow card to red" : "convert the red card to yellow";
+            var roleTag = Context.Guild.Roles.Where(r => r.Name == CardRole).FirstOrDefault().Mention;
+
+            var message = await ReplyAsync($"{roleTag}: {Context.User.Mention} has challeneged {user1.Mention}'s last {card.Card.Name} card.  {Context.User.Username} is proposing to {proposal}.  Place your votes below.  The votes will be counted in 1 hour.");
+
+
+
+            ChallengeTimer t = new ChallengeTimer(message);
+        }
 
         [Command("score")]
         public async Task ShowScoreboard()

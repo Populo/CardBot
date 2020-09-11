@@ -75,13 +75,12 @@ namespace CardBot
             var message = arg as SocketUserMessage;
             var context = new SocketCommandContext(_client, message);
             var channel = context.Channel;
+            int argPos = 0;
 
-            Logger.Info($"Command issued by {arg.Author} in #{arg.Channel}: {arg.Content}");
-
-            if (channel.Name == "card-tracker")
+            if (message.HasStringPrefix(prefix, ref argPos))
             {
-                int argPos = 0;
-                if (message.HasStringPrefix(prefix, ref argPos))
+                Logger.Info($"Command issued by {arg.Author} in #{arg.Channel}: {arg.Content}");
+                if (channel.Name == "card-tracker")
                 {
                     var result = await _commands.ExecuteAsync(context, argPos, _services);
                     if (!result.IsSuccess) Console.WriteLine(result.ErrorReason);

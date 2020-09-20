@@ -1,8 +1,10 @@
-﻿using Discord;
+﻿using CardBot.Models;
+using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
 using Microsoft.Extensions.DependencyInjection;
 using NLog;
+using SQLitePCL;
 using System;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -27,8 +29,15 @@ namespace CardBot
             }
 
             ConfigureLogger();
+            System.AppDomain.CurrentDomain.UnhandledException += GlobalHandler;
+            ChallengeSingleton s = ChallengeSingleton.Instance;
 
             new Program().RunBotAsync(args[0]).GetAwaiter().GetResult();
+        }
+
+        private static void GlobalHandler(object sender, UnhandledExceptionEventArgs e)
+        {
+            Logger.Error(e.ExceptionObject.ToString());
         }
 
         private static void ConfigureLogger()
@@ -36,10 +45,12 @@ namespace CardBot
             var config = new NLog.Config.LoggingConfiguration();
 
             var logfile = new NLog.Targets.FileTarget("logfile") { FileName = "Log.log" };
+            var errorFile = new NLog.Targets.FileTarget("errorfile") { FileName = "Errors.log" };
             var logconsole = new NLog.Targets.ConsoleTarget("logconsole");
 
             config.AddRule(LogLevel.Info, LogLevel.Fatal, logconsole);
-            config.AddRule(LogLevel.Trace, LogLevel.Fatal, logfile);
+            config.AddRule(LogLevel.Info, LogLevel.Fatal, logfile);
+            config.AddRule(LogLevel.Warn, LogLevel.Fatal, errorFile);
 
             NLog.LogManager.Configuration = config;
         }
@@ -75,13 +86,12 @@ namespace CardBot
             var message = arg as SocketUserMessage;
             var context = new SocketCommandContext(_client, message);
             var channel = context.Channel;
+            int argPos = 0;
 
-            Logger.Info($"Command issued by {arg.Author} in #{arg.Channel}: {arg.Content}");
-
-            if (channel.Name == "card-tracker")
+            if (message.HasStringPrefix(prefix, ref argPos))
             {
-                int argPos = 0;
-                if (message.HasStringPrefix(prefix, ref argPos))
+                Logger.Info($"Command issued by {arg.Author} in #{arg.Channel}: {arg.Content}");
+                if (channel.Name == "card-tracker")
                 {
                     var result = await _commands.ExecuteAsync(context, argPos, _services);
                     if (!result.IsSuccess) Console.WriteLine(result.ErrorReason);

@@ -1,6 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using Discord;
+using Discord.Commands;
+using Discord.WebSocket;
+using System;
+using System.Linq;
 
 namespace CardBot.Models
 {
@@ -10,21 +12,45 @@ namespace CardBot.Models
 
         public bool Triggered { get
             {
-                return _startTime.Add(new TimeSpan(1, 0, 0)) > DateTime.Now;
+#if DEBUG
+                return _startTime.Add(new TimeSpan(0, 0, 10)) < DateTime.Now;
+#else
+                return _startTime.Add(new TimeSpan(1, 0, 0)) < DateTime.Now;
+#endif
             } }
 
-        public Cards Card { get; }
+        public CardGivings Card { get; }
 
         public CardChallengeChanges Change { get; }
 
-        public Users Challenger { get; }
+        public SocketUser Challenger { get; }
 
-        public Challenge(Cards card, Users challenger, CardChallengeChanges change)
+        public ulong MessageId { get; }
+
+        public SocketCommandContext Context { get; }
+
+        public bool Overturned => ToOverturn();
+
+        public Challenge(CardGivings card, SocketUser challenger, CardChallengeChanges change, ulong messageId, SocketCommandContext context)
         {
             Card = card;
             Challenger = challenger;
             Change = change;
             _startTime = DateTime.Now;
+            MessageId = messageId;
+            Context = context;
+        }
+
+        private bool ToOverturn()
+        {
+            var message = Context.Channel.GetMessageAsync(MessageId).Result;
+
+            var reacts = message.Reactions;
+
+            var up = reacts.Keys.Where(e => e.Name == "👍").First();
+            var down = reacts.Keys.Where(e => e.Name == "👎").First();
+
+            return reacts[up].ReactionCount > reacts[down].ReactionCount;
         }
     }
 }

@@ -39,8 +39,12 @@ namespace CardBot.Modules
             using (DataContext db = new DataContext())
             {
                 card = db.CardGivings.AsQueryable()
-                    .Where(c => c.DegenerateId.Equals(db.Users.AsQueryable().Where(u => u.Name == user).Select(u => u.Id).First()))
-                    .OrderBy(c => c.TimeStamp).First();
+                    .Where(c => c.DegenerateId.Equals(db.Users.AsQueryable().Where(u => u.Name == user1.Username).Select(u => u.Id).First()))
+                    .OrderBy(c => c.TimeStamp).Last();
+
+                card.Card = db.Cards.AsQueryable().Where(c => c.Id == card.CardId).First();
+                card.Degenerate = db.Users.AsQueryable().Where(u => u.Id == card.DegenerateId).First();
+                card.Giver = db.Users.AsQueryable().Where(u => u.Id == card.GiverId).First();
 
                 if ((challenge == CardChallengeChanges.YELLOW && card.Card.Name == "Yellow") || (challenge == CardChallengeChanges.RED && card.Card.Name == "Red"))
                 {
@@ -52,11 +56,11 @@ namespace CardBot.Modules
             string proposal = challenge == CardChallengeChanges.REMOVE ? "remove the card" : challenge == CardChallengeChanges.RED ? "convert the yellow card to red" : "convert the red card to yellow";
             var roleTag = Context.Guild.Roles.Where(r => r.Name == CardRole).FirstOrDefault().Mention;
 
-            var message = await ReplyAsync($"{roleTag}: {Context.User.Mention} has challeneged {user1.Mention}'s last {card.Card.Name} card.  {Context.User.Username} is proposing to {proposal}.  Place your votes below.  The votes will be counted in 1 hour.");
+            var message = await ReplyAsync($"{roleTag}: {Context.User.Mention} has challenged {user1.Mention}'s last {card.Card.Name} card.  {Context.User.Username} is proposing to {proposal}.  Place your votes below.  The votes will be counted in 1 hour.");
+            await message.AddReactionsAsync(new[] { new Emoji("👍"), new Emoji("👎") });
 
-
-
-            ChallengeTimer t = new ChallengeTimer(message);
+            var challenges = ChallengeSingleton.Instance;
+            challenges.NewChallenge(new Challenge(card, Context.User, challenge, message.Id, Context));
         }
 
         [Command("score")]

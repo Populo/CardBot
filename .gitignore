@@ -410,3 +410,5 @@ MigrationBackup/
 CardBot/Properties/launchSettings.json
 
 *.db
+
+.vscode/

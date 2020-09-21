@@ -34,7 +34,6 @@ namespace CardBot.Models
         {
             Console.WriteLine("Timer Exec");
             var toExec = Challenges.Where(c => c.Triggered).ToList();
-            Timer.Stop();
 
             toExec.All(e => Challenges.Remove(e));
 
@@ -66,7 +65,6 @@ namespace CardBot.Models
                     c.Context.Channel.SendMessageAsync(text: $"{c.Challenger}'s challenge on {c.Card.Degenerate.Name}'s {c.Card.Card.Name} card has been reviewed. The card stands.");
                 }
             }
-            Timer.Start();
 
             if (Challenges.Count == 0) Timer.Stop();
         }

@@ -20,12 +20,7 @@ namespace CardBot.Models
         private ChallengeSingleton() {
             Challenges = new List<Challenge>();
             Timer = new Timer();
-#if DEBUG
-            Timer.Interval = 10 * 1000; // 10 seconds
-            Console.WriteLine("Debugging.  Challenge Timer: 10 seconds");
-#else
             Timer.Interval = 60 * 60 * 1000; // 1 hour
-#endif
             Timer.AutoReset = true;
             Timer.Elapsed += Timer_Elapsed;
         }

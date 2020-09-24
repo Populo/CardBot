@@ -22,12 +22,7 @@ namespace CardBot.Models
 
         private NonsenseSingleton() {
             Timer = new Timer();
-#if DEBUG
-            Timer.Interval = 10 * 1000; // 10 seconds
-            Console.WriteLine("Debugging.  Nonsense Timer: 10 seconds");
-#else
-            Timer.Interval = 6 * 60 * 60 * 1000; // 6 hours
-#endif
+            Timer.Interval = 2 * 60 * 60 * 1000; // 2 hours
             Timer.AutoReset = true;
             Timer.Elapsed += Timer_Elapsed;
             Timer.Start();

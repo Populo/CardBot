@@ -72,6 +72,8 @@ namespace CardBot
 
             await _client.StartAsync();
 
+            await _client.SetGameAsync("for degenerates", null, ActivityType.Watching);
+
             await Task.Delay(-1);
         }
 

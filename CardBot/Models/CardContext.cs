@@ -22,6 +22,9 @@ namespace CardBot.Models
     {
         public Guid Id { get; set; }
         public string Name { get; set; }
+        public ulong ServerId { get; set; }
+        public string Emoji { get; set; }
+        public int Value { get; set; }
     }
 
     public class Users

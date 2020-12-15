@@ -36,7 +36,7 @@ namespace CardBot.Models
             {
                 if (c.Overturned)
                 {
-                    using (var db = new DataContext())
+                    using (var db = new CardContext())
                     {
                         switch (c.Change)
                         {
@@ -70,7 +70,7 @@ namespace CardBot.Models
             if (!Timer.Enabled) Timer.Start();
         }
 
-        private void ChangeCard(DataContext db, Challenge challenge, CardChallengeChanges change)
+        private void ChangeCard(CardContext db, Challenge challenge, CardChallengeChanges change)
         {
             var toChange = db.CardGivings.AsQueryable().Where(c => c.Id == challenge.Card.Id).First();
 

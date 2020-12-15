@@ -12,13 +12,12 @@ namespace CardBot.Modules
     {
         private static NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
 
-        public int FistMeDaddy(SocketUser sender, SocketUser user, string reason, string color, ulong serverId)
+        public int FistMeDaddy(SocketUser sender, SocketUser user, string reason, Cards card, ulong serverId)
         {
             try
             {
-                using (var db = new DataContext())
+                using (var db = new CardContext())
                 {
-                    var card = db.Cards.AsQueryable().Where(c => c.Name == color).FirstOrDefault();
                     var giver = db.Users.AsQueryable().Where(u => u.Name == sender.Username).FirstOrDefault();
                     var degenerate = db.Users.AsQueryable().Where(u => u.Name == user.Username).FirstOrDefault();
 
@@ -30,11 +29,6 @@ namespace CardBot.Modules
                     if (degenerate == null)
                     {
                         degenerate = CreateUser(user, db);
-                    }
-
-                    if (card == null)
-                    {
-                        card = CreateCard(color, db);
                     }
 
                     db.CardGivings.Add(new CardGivings
@@ -63,7 +57,7 @@ namespace CardBot.Modules
             }
         }
 
-        private Users CreateUser(SocketUser sender, DataContext db)
+        private Users CreateUser(SocketUser sender, CardContext db)
         {
             try
             {
@@ -84,7 +78,7 @@ namespace CardBot.Modules
             }
         }
 
-        private Cards CreateCard(string color, DataContext db)
+        private Cards CreateCard(string color, CardContext db)
         {
             try
             {
@@ -109,7 +103,7 @@ namespace CardBot.Modules
         {
             try
             {
-                using (var db = new DataContext())
+                using (var db = new CardContext())
                 {
                     var all = db.CardGivings.AsQueryable().Where(c => c.ServerId == serverId).ToList();
                     if (all.Count > 0)
@@ -142,7 +136,7 @@ namespace CardBot.Modules
         private Dictionary<string, int[]> BuildScoreboard(List<CardGivings> set)
         {
             var s = new Dictionary<string, int[]>();
-            using (var db = new DataContext())
+            using (var db = new CardContext())
             {
                 foreach (var i in set)
                 {
@@ -205,7 +199,7 @@ namespace CardBot.Modules
         {
             string message = $"History for {user}:\n";
 
-            using (var db = new DataContext())
+            using (var db = new CardContext())
             {
                 var history = db.CardGivings.AsQueryable()
                                             .Where(g => g.Degenerate.Id == db.Users.AsQueryable()

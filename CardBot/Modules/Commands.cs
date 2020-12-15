@@ -11,10 +11,15 @@ namespace CardBot.Modules
 {
     public class Commands : ModuleBase<SocketCommandContext>
     {
-        private string CardRole = "CardBot";
+        private string CardRole = "CardBot",
+            CardRoleAdmin = "CardAdmin";
+
+        private string CardChannel = "card-tracker",
+            CardErrorChannel = "card-tracker-errors";
 
         private readonly Emoji Frown = new Emoji("😦");
         private readonly Emoji Smile = new Emoji("🙂");
+        private readonly ulong NoUTopiaServerId = 140642236978167808;
 
         private CardLeaderboard Leaderboard = new CardLeaderboard();
 
@@ -36,7 +41,7 @@ namespace CardBot.Modules
             var user1 = GetUser(user);
             CardGivings card;
 
-            using (DataContext db = new DataContext())
+            using (CardContext db = new CardContext())
             {
                 card = db.CardGivings.AsQueryable()
                     .Where(c => c.DegenerateId.Equals(db.Users.AsQueryable().Where(u => u.Name == user1.Username).Select(u => u.Id).First()))
@@ -71,30 +76,6 @@ namespace CardBot.Modules
             await ReplyAsync(Leaderboard.DisplayLeaderboard(serverId));
         }
 
-        [Command("yellow")]
-        public async Task AddYellow(string user, params string[] reason)
-        {
-            if (reason.Length < 1)
-            {
-                reason = new[] { "being a degenerate" };
-            }
-            string reasonString = string.Join(' ', reason);
-
-            await AddCard(user, "Yellow", reasonString);
-        }
-
-        [Command("red")]
-        public async Task AddRed(string user, params string[] reason)
-        {
-            if (reason.Length < 1)
-            {
-                reason = new[] { "being a degenerate" };
-            }
-            string reasonString = string.Join(' ', reason);
-
-            await AddCard(user, "Red", reasonString);
-        }
-
         private SocketUser GetUser(string user)
         {
             var mention = Context.Message.MentionedUsers.FirstOrDefault(x => x.Mention == user);
@@ -102,7 +83,7 @@ namespace CardBot.Modules
             {
                 var role = Context.Guild.Roles.Where(r => r.Name == CardRole).FirstOrDefault();
                 mention = Context.Guild.Users
-                    .Where(x => x.Username.Contains(user, StringComparison.CurrentCultureIgnoreCase))
+                    .Where(x => x.Username.Contains(user, StringComparison.CurrentCultureIgnoreCase) || x.Nickname.Contains(user, StringComparison.CurrentCultureIgnoreCase))
                     .Where(x => x.Roles.Contains(role))
                     .FirstOrDefault();
             }
@@ -116,42 +97,46 @@ namespace CardBot.Modules
             return mention;
         }
 
-        private async Task AddCard(string user, string color, string reason) {
-            IEmote[] emotes = new IEmote[2];
-            emotes[0] = Frown;
-
-            IEmote emoteYellow, emoteRed;
-
-            if (Context.Guild.Id == 140642236978167808) // no u topia
-            {
-                // get emojis
-                emoteYellow = Context.Guild.Emotes.Where(e => e.Name.Contains("yellowCard")).First();
-                emoteRed = Context.Guild.Emotes.Where(e => e.Name.Contains("redCard")).First();
-            }
-            else
-            {
-                emoteYellow = new Emoji("🟨"); // :yellow_square:
-                emoteRed = new Emoji("🟥"); // :red_square:
-            }
+        private Cards GetCard(string color, ulong serverId)
+        {
+            Cards card = null;
             
+            using (var db = new CardContext())
+            {
+                card = db.Cards.AsQueryable()
+                    .Where(c => c.ServerId == serverId)
+                    .Where(c => c.Name == color)
+                    .FirstOrDefault();
+            }
 
-            emotes[1] = color == "Red" ? emoteRed : emoteYellow;
+            return card;
+        }
+
+        private async Task AddCard(SocketUser user, Cards card, string reason)
+        {
+            IEmote[] emotes = new IEmote[2]
+            {
+                Frown,
+                new Emoji(card.Emoji)
+            };
+            
             await Context.Message.AddReactionsAsync(emotes);
-
-            var mention = GetUser(user);
 
             var sender = Context.User;
             var serverId = Context.Guild.Id;
+            var adminChannel = Context.Guild.Channels.First(c => c.Name == CardErrorChannel);
 
-            var cardCount = Leaderboard.FistMeDaddy(sender, mention, reason, color, serverId);
-
-            if (cardCount != 0)
+            try
             {
-                await ReplyAsync($"{mention} now has {cardCount} {color} cards.");
+                var cardCount = Leaderboard.FistMeDaddy(sender, user, reason, card, serverId);
+
+                if (cardCount > 0) await ReplyAsync($"{user.Mention} now has {cardCount} {card.Name} cards.");
+                else throw new Exception("Could not add card :(");
             }
-            else
+            catch (Exception e)
             {
-                Logger.Error("Sent Message: {message}", Context.Message);
+                Logger.Error("Sent Message: {message}\n{Error}", Context.Message, e);
+                await Context.Guild.GetTextChannel(adminChannel.Id).SendMessageAsync(e.Message);
                 await ReplyAsync("That didnt work. frown :(");
             }
         }
@@ -160,12 +145,36 @@ namespace CardBot.Modules
         public async Task GetHistory(string user, int count = 10)
         {
             await Context.Message.AddReactionAsync(Smile);
-            var mention = GetUser(user);
             var serverId = Context.Guild.Id;
+            var mention = GetUser(user);
 
             var reply = Leaderboard.GetHistory(mention.Username, count, serverId);
 
             await ReplyAsync(reply);
+        }
+
+        [Command("card")]
+        public async Task GiveCard(string user, string color, params string[] reason)
+        {
+            if (reason.Length == 0)
+            {
+                reason = new[] {"being an ass"};
+            }
+
+            string r = string.Join(' ', reason);
+            
+            var serverId = Context.Guild.Id;
+            
+            var mention = GetUser(user);
+            var card = GetCard(color, serverId);
+
+            if (card == null)
+            {
+                await ReplyAsync("This card does not exist. Please create it with !create");
+                return;
+            }
+
+            await AddCard(mention, card, r);
         }
     }
 }

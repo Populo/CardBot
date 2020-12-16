@@ -5,6 +5,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Text;
 
 namespace CardBot.Modules
 {
@@ -97,6 +98,82 @@ namespace CardBot.Modules
                 Logger.Error(e);
                 return null;
             }
+        }
+
+        public string BuildLeaderboard(ulong serverId)
+        {
+            StringBuilder message = new StringBuilder();
+            string line = "";
+            
+            List<Cards> cards;
+            List<CardGivings> givings;
+            List<Users> users;
+            
+            using (var db = new CardContext())
+            {
+                cards = db.Cards.AsQueryable()
+                    .Where(c => c.ServerId == serverId).OrderByDescending(c => c.Value).ToList();
+
+                givings = db.CardGivings.AsQueryable()
+                    .Where(c => c.ServerId == serverId).ToList();
+
+                var userIds = givings.Select(u => u.DegenerateId).Distinct().ToList();
+                users = db.Users.AsQueryable()
+                    .Where(u => userIds.Any(i => i == u.Id)).ToList();
+            }
+            
+            // build header
+            line = "| User |";
+            foreach (var c in cards)
+            {
+                line += $" {c.Name} |";
+            }
+
+            message.AppendLine(line);
+            
+            line = "|";
+            int col = cards.Count + 1;
+
+            for (int i = 0; i < col; ++i)
+            {
+                line += " --- |";
+            }
+
+            message.AppendLine(line);
+            line = "";
+
+            var players = BuildPlayerInfo(givings, users, cards);
+
+            foreach (var p in players)
+            {
+                message.AppendLine(p.Markdown);
+            }
+
+            return message.ToString();
+        }
+
+        private List<LeaderboardEntry> BuildPlayerInfo(List<CardGivings> givings, List<Users> users, List<Cards> cards)
+        {
+            List<LeaderboardEntry> entries = new List<LeaderboardEntry>();
+
+            LeaderboardEntry current = new LeaderboardEntry();
+            int count = 0;
+            
+            foreach (var u in users)
+            {
+                current.User = u;
+                current.Givings = new Dictionary<Cards, int>();
+                foreach (var c in cards)
+                {
+                    count = givings.Where(g => g.DegenerateId == u.Id).Where(g => g.CardId == c.Id).Count();
+                    current.Givings.Add(c, count);
+                }
+                entries.Add(current);
+            }
+
+            entries = entries.OrderByDescending(e => e.Score).ToList();
+            
+            return entries;
         }
 
         public string DisplayLeaderboard(ulong serverId)

@@ -480,3 +480,6 @@ MigrationBackup/
 .ionide/
 
 # End of https://www.toptal.com/developers/gitignore/api/windows,visualstudio,visualstudiocode,dotnetcore,rider
+CardBot/Properties/launchSettings.json
+
+CardBot/Database.db

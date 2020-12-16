@@ -38,19 +38,16 @@ namespace CardBot.Models
                 {
                     using (var db = new CardContext())
                     {
-                        switch (c.Change)
+                        if (null == c.NewCard) // deleting card
                         {
-                            case CardChallengeChanges.REMOVE:
-                                db.CardGivings.Remove(c.Card);
-                                SendResult(c, CardChallengeChanges.REMOVE);
-                                break;
-                            case CardChallengeChanges.YELLOW:
-                                ChangeCard(db, c, CardChallengeChanges.YELLOW);
-                                break;
-                            case CardChallengeChanges.RED:
-                                ChangeCard(db, c, CardChallengeChanges.RED);
-                                break;
+                            db.CardGivings.Remove(c.Card);
                         }
+                        else
+                        {
+                            ChangeCard(db, c, c.NewCard);
+                        }
+
+                        SendResult(c);
 
                         db.SaveChanges();
                     }  
@@ -70,25 +67,18 @@ namespace CardBot.Models
             if (!Timer.Enabled) Timer.Start();
         }
 
-        private void ChangeCard(CardContext db, Challenge challenge, CardChallengeChanges change)
+        private void ChangeCard(CardContext db, Challenge challenge, Cards newCard)
         {
             var toChange = db.CardGivings.AsQueryable().Where(c => c.Id == challenge.Card.Id).First();
 
-            var newCard = change == CardChallengeChanges.RED ? 
-                                        db.Cards.AsQueryable().Where(c => c.Name == "Red").First() : 
-                                        db.Cards.AsQueryable().Where(c => c.Name == "Yellow").First();
-
             toChange.Card = newCard;
             toChange.CardId = newCard.Id;
-
-            SendResult(challenge, change);
         }
 
-        private void SendResult(Challenge challenge, CardChallengeChanges change)
+        private void SendResult(Challenge challenge)
         {
-            string update = change == CardChallengeChanges.REMOVE ? "The card has been removed." : 
-                            change == CardChallengeChanges.RED ? "The card has been upgraded to a red card.  May God have mercy on your soul." : 
-                                "The card has been downgraded to a yellow card.";
+            string update = null == challenge.NewCard  ? "The card has been removed." : 
+                            $"The {challenge.Card.Card.Name} has been changed to a {challenge.NewCard.Name} card.";
 
             challenge.Context.Channel.SendMessageAsync(text: $"{challenge.Challenger}'s challenge on {challenge.Card.Degenerate.Name}'s {challenge.Card.Card.Name} card has been reviewed. {update}");
         }

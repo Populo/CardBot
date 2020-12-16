@@ -21,7 +21,7 @@ namespace CardBot.Models
 
         public CardGivings Card { get; }
 
-        public CardChallengeChanges Change { get; }
+        public Cards NewCard { get; }
 
         public SocketUser Challenger { get; }
 
@@ -31,11 +31,11 @@ namespace CardBot.Models
 
         public bool Overturned => ToOverturn();
 
-        public Challenge(CardGivings card, SocketUser challenger, CardChallengeChanges change, ulong messageId, SocketCommandContext context)
+        public Challenge(CardGivings card, SocketUser challenger, Cards newCard, ulong messageId, SocketCommandContext context)
         {
             Card = card;
             Challenger = challenger;
-            Change = change;
+            NewCard = newCard;
             _startTime = DateTime.Now;
             MessageId = messageId;
             Context = context;

@@ -26,16 +26,33 @@ namespace CardBot.Modules
         private static NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
 
         [Command("challenge")]
-        public async Task ChallengeCard(string user, string change)
+        public async Task ChallengeCard(string user, string newColor, params string[] reason)
         {
-            CardChallengeChanges challenge;
-            if (change.Equals("yellow")) challenge = CardChallengeChanges.YELLOW;
-            else if (change.Equals("red")) challenge = CardChallengeChanges.RED;
-            else if (change.Equals("delete")) challenge = CardChallengeChanges.REMOVE;
+            Cards newCard = null;
+            
+            if (reason.Length == 0)
+            {
+                reason = new[] {"none"};
+            }
+
+            string reasonForChallenge = string.Join(' ', reason);
+
+            if (newColor == "delete" || newColor == "remove")
+            {
+                newColor = "none";
+            }
             else
             {
-                await ReplyAsync("Valid options are yellow, red, or delete");
-                return;
+                using (var db = new CardContext())
+                {
+                    newCard = db.Cards.AsQueryable()
+                        .First(c => c.Name == newColor);
+                }
+            }
+
+            if (null == newCard && newColor != "none")
+            {
+                await ReplyAsync($"Cannot find {newColor}. Does the card exist?");
             }
 
             var user1 = GetUser(user);
@@ -51,21 +68,25 @@ namespace CardBot.Modules
                 card.Degenerate = db.Users.AsQueryable().Where(u => u.Id == card.DegenerateId).First();
                 card.Giver = db.Users.AsQueryable().Where(u => u.Id == card.GiverId).First();
 
-                if ((challenge == CardChallengeChanges.YELLOW && card.Card.Name == "Yellow") || (challenge == CardChallengeChanges.RED && card.Card.Name == "Red"))
+                if (card.Card.Id == newCard.Id)
                 {
                     await ReplyAsync("You cannot change the card to the same color");
                     return;
                 }
             }
 
-            string proposal = challenge == CardChallengeChanges.REMOVE ? "remove the card" : challenge == CardChallengeChanges.RED ? "convert the yellow card to red" : "convert the red card to yellow";
-            var roleTag = Context.Guild.Roles.Where(r => r.Name == CardRole).FirstOrDefault().Mention;
+            string proposal = newColor == "none"
+                ? "delete the card"
+                : $"convert their {card.Card.Name} card to a {newCard.Name} card";
+            var roleTag = Context.Guild.Roles.First(r => r.Name == CardRole).Mention;
 
-            var message = await ReplyAsync($"{roleTag}: {Context.User.Mention} has challenged {user1.Mention}'s last {card.Card.Name} card.  {Context.User.Username} is proposing to {proposal}.  Place your votes below.  The votes will be counted in 1 hour.");
+            var message = await ReplyAsync($"{roleTag}: {Context.User.Mention} has challenged {user1.Mention}'s last {card.Card.Name} card.  {Context.User.Username} is proposing to {proposal}.\n\n" +
+                                           $"{Context.User.Username}'s reasoning:\n ```{reasonForChallenge}```\n\n" +
+                                           $"Place your votes below.  The votes will be counted in 1 hour.");
             await message.AddReactionsAsync(new[] { new Emoji("👍"), new Emoji("👎") });
 
             var challenges = ChallengeSingleton.Instance;
-            challenges.NewChallenge(new Challenge(card, Context.User, challenge, message.Id, Context));
+            challenges.NewChallenge(new Challenge(card, Context.User, newCard, message.Id, Context));
         }
 
         [Command("score")]
@@ -73,7 +94,7 @@ namespace CardBot.Modules
         {
             await Context.Message.AddReactionAsync(Smile);
             var serverId = Context.Guild.Id;
-            await ReplyAsync(Leaderboard.DisplayLeaderboard(serverId));
+            await ReplyAsync(Leaderboard.BuildLeaderboard(serverId));
         }
 
         private SocketUser GetUser(string user)

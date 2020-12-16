@@ -121,22 +121,14 @@ namespace CardBot.Modules
                 users = db.Users.AsQueryable()
                     .Where(u => userIds.Any(i => i == u.Id)).ToList();
             }
+
+            message.Append("Current Leaderboard:\n```");
             
             // build header
             line = "| User |";
             foreach (var c in cards)
             {
                 line += $" {c.Name} |";
-            }
-
-            message.AppendLine(line);
-            
-            line = "|";
-            int col = cards.Count + 1;
-
-            for (int i = 0; i < col; ++i)
-            {
-                line += " --- |";
             }
 
             message.AppendLine(line);
@@ -148,6 +140,9 @@ namespace CardBot.Modules
             {
                 message.AppendLine(p.Markdown);
             }
+            
+            // end code block
+            message.Append("```");
 
             return message.ToString();
         }
@@ -169,6 +164,7 @@ namespace CardBot.Modules
                     current.Givings.Add(c, count);
                 }
                 entries.Add(current);
+                current = new LeaderboardEntry();
             }
 
             entries = entries.OrderByDescending(e => e.Score).ToList();

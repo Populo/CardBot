@@ -128,10 +128,19 @@ namespace CardBot.Modules
             message.Append("Current Leaderboard:\n```");
 
             int longestUser = users.OrderByDescending(u => u.Name.Length).First().Name.Length;
+            var players = BuildPlayerInfo(givings, users, cards);
 
             string userHeader = "User";
             string scoreHeader = "Score";
+            int scoreWidth = scoreHeader.Length;
+            
             if (longestUser < userHeader.Length) longestUser = userHeader.Length;
+            string longestScore = players.OrderByDescending(p => p.Score).First().Score.ToString();
+            if (longestScore.Length > scoreWidth)
+            {
+                scoreWidth = longestScore.Length;
+            }
+            
             
             // build header
             line = $"| {userHeader.CenterString(longestUser)} |";
@@ -141,16 +150,22 @@ namespace CardBot.Modules
                 line += $" {c.Name} |";
             }
 
-            int length = line.Length;
+            string header = line;
             message.AppendLine(line);
-            message.AppendLine(new string('-', length));
-            line = "";
-
-            var players = BuildPlayerInfo(givings, users, cards);
+            
+            line = new string('-', header.Length);
+            int index = 0;
+            while (header.Substring(index).Length != 0 && header.Substring(index).Contains('|'))
+            {
+                index = header.IndexOf('|', index);
+                line.ToCharArray()[index] = '+';
+            }
+            
+            message.AppendLine(line);
 
             foreach (var p in players)
             {
-                message.AppendLine(p.PrintMarkdownRow(longestUser, scoreHeader.Length));
+                message.AppendLine(p.PrintMarkdownRow(longestUser, scoreWidth));
             }
             
             // end code block

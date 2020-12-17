@@ -146,7 +146,7 @@ namespace CardBot.Modules
             string header = "", line = "", segment = "";
             header = $"| {userHeader.CenterString(longestUser)} |";
             line = $"|{new string('-', header.Length - 2)}+";
-            segment = $" {scoreHeader} |";
+            segment = $" {scoreHeader.CenterString(scoreWidth)} |";
             line += $"{new string('-', segment.Length - 1)}+";
             header += segment;
             foreach (var c in cards)

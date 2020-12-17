@@ -51,7 +51,11 @@ namespace CardBot.Modules
 
                     db.SaveChanges();
 
-                    return db.CardGivings.AsQueryable().Where(c => c.Degenerate.Id == degenerate.Id).Where(c => c.Card.Id == card.Id).Where(c => c.ServerId == serverId).Count();
+                    return db.CardGivings.AsQueryable()
+                        .Where(c => c.Degenerate.Id == degenerate.Id)
+                        .Where(c => c.Card.Id == card.Id)
+                        .Where(c => c.ServerId == serverId)
+                        .Count();
                 }
             }
             catch (Exception e)

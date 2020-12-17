@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using CardBot.Modules;
 
 namespace CardBot.Models
 {
@@ -8,7 +9,6 @@ namespace CardBot.Models
         public Users User { get; set; }
         public Dictionary<Cards, int> Givings { get; set; }
         public int Score => CalculateScore();
-        public string Markdown => PrintMarkdownRow();
 
         private int CalculateScore()
         {
@@ -26,15 +26,17 @@ namespace CardBot.Models
             return score;
         }
 
-        private string PrintMarkdownRow()
+        public string PrintMarkdownRow(int longestName, int scoreHeader)
         {
-            string line = $"| {User.Name} |";
+            string line = $"| {User.Name.CenterString(longestName)} |";
 
+            line += $" {this.Score.ToString().CenterString(scoreHeader)} |";
+            
             Givings = SortGivings();
             
             foreach (var c in Givings.Keys)
             {
-                line += $" {Givings[c]} |";
+                line += $" {Givings[c].ToString().CenterString(c.Name.Length)} |";
             }
 
             return line;

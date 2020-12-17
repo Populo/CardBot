@@ -31,10 +31,10 @@ namespace CardBot.Modules
                     {
                         degenerate = CreateUser(user, db);
                     }
-
-                    db.CardGivings.Add(new CardGivings
+                    
+                    var newCard = new CardGivings
                     {
-                        Id = new Guid(),
+                        Id = Guid.NewGuid(),
                         CardId = card.Id,
                         Card = card,
                         GiverId = giver.Id,
@@ -44,7 +44,9 @@ namespace CardBot.Modules
                         CardReason = reason,
                         ServerId = serverId,
                         TimeStamp = DateTime.Now
-                    });
+                    };
+
+                    db.CardGivings.Add(newCard);
 
                     db.SaveChanges();
 
@@ -54,6 +56,7 @@ namespace CardBot.Modules
             catch (Exception e)
             {
                 Logger.Error(e);
+                throw;
                 return 0;
             }
         }
@@ -64,7 +67,7 @@ namespace CardBot.Modules
             {
                 var u = db.Users.Add(new Users
                 {
-                    Id = new Guid(),
+                    Id = Guid.NewGuid(),
                     Name = sender.Username
                 }); ;
 
@@ -85,7 +88,7 @@ namespace CardBot.Modules
             {
                 var c = db.Cards.Add(new Cards
                 {
-                    Id = new Guid(),
+                    Id = Guid.NewGuid(),
                     Name = color
                 });
 
@@ -123,22 +126,31 @@ namespace CardBot.Modules
             }
 
             message.Append("Current Leaderboard:\n```");
+
+            int longestUser = users.OrderByDescending(u => u.Name.Length).First().Name.Length;
+
+            string userHeader = "User";
+            string scoreHeader = "Score";
+            if (longestUser < userHeader.Length) longestUser = userHeader.Length;
             
             // build header
-            line = "| User |";
+            line = $"| {userHeader.CenterString(longestUser)} |";
+            line += $" {scoreHeader} |";
             foreach (var c in cards)
             {
                 line += $" {c.Name} |";
             }
 
+            int length = line.Length;
             message.AppendLine(line);
+            message.AppendLine(new string('-', length));
             line = "";
 
             var players = BuildPlayerInfo(givings, users, cards);
 
             foreach (var p in players)
             {
-                message.AppendLine(p.Markdown);
+                message.AppendLine(p.PrintMarkdownRow(longestUser, scoreHeader.Length));
             }
             
             // end code block

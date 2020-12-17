@@ -126,7 +126,7 @@ namespace CardBot.Modules
             {
                 card = db.Cards.AsQueryable()
                     .Where(c => c.ServerId == serverId)
-                    .Where(c => c.Name == color)
+                    .Where(c => c.Name.ToLower() == color.ToLower())
                     .FirstOrDefault();
             }
 
@@ -151,12 +151,10 @@ namespace CardBot.Modules
             {
                 var cardCount = Leaderboard.FistMeDaddy(sender, user, reason, card, serverId);
 
-                if (cardCount > 0) await ReplyAsync($"{user.Mention} now has {cardCount} {card.Name} cards.");
-                else throw new Exception("Could not add card :(");
+                await ReplyAsync($"{user.Mention} now has {cardCount} {card.Name} cards.");
             }
             catch (Exception e)
             {
-                Logger.Error("Sent Message: {message}\n{Error}", Context.Message, e);
                 await Context.Guild.GetTextChannel(adminChannel.Id).SendMessageAsync(e.Message);
                 await ReplyAsync("That didnt work. frown :(");
             }
@@ -175,7 +173,7 @@ namespace CardBot.Modules
         }
 
         [Command("card")]
-        public async Task GiveCard(string user, string color, params string[] reason)
+        public async Task GiveCard(string color, string user, params string[] reason)
         {
             if (reason.Length == 0)
             {

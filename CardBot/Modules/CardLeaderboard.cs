@@ -21,6 +21,7 @@ namespace CardBot.Modules
                 {
                     var giver = db.Users.AsQueryable().Where(u => u.Name == sender.Username).FirstOrDefault();
                     var degenerate = db.Users.AsQueryable().Where(u => u.Name == user.Username).FirstOrDefault();
+                    var givenCard = db.Cards.AsQueryable().Where(c => c.Id == card.Id).FirstOrDefault();
 
                     if (giver == null)
                     {
@@ -35,8 +36,8 @@ namespace CardBot.Modules
                     var newCard = new CardGivings
                     {
                         Id = Guid.NewGuid(),
-                        CardId = card.Id,
-                        Card = card,
+                        CardId = givenCard.Id,
+                        Card = givenCard,
                         GiverId = giver.Id,
                         Giver = giver,
                         DegenerateId = degenerate.Id,
@@ -106,7 +107,6 @@ namespace CardBot.Modules
         public string BuildLeaderboard(ulong serverId)
         {
             StringBuilder message = new StringBuilder();
-            string line = "";
             
             List<Cards> cards;
             List<CardGivings> givings;
@@ -127,7 +127,7 @@ namespace CardBot.Modules
 
             message.Append("Current Leaderboard:\n```");
 
-            int longestUser = users.OrderByDescending(u => u.Name.Length).First().Name.Length;
+            int longestUser = users.OrderByDescending(u => u.Name.Length).First().Name.Length + 1;
             var players = BuildPlayerInfo(givings, users, cards);
 
             string userHeader = "User";
@@ -143,24 +143,22 @@ namespace CardBot.Modules
             
             
             // build header
-            line = $"| {userHeader.CenterString(longestUser)} |";
-            line += $" {scoreHeader} |";
+            string header = "", line = "", segment = "";
+            header = $"| {userHeader.CenterString(longestUser)} |";
+            line = $"|{new string('-', header.Length - 2)}+";
+            segment = $" {scoreHeader} |";
+            line += $"{new string('-', segment.Length - 1)}+";
+            header += segment;
             foreach (var c in cards)
             {
-                line += $" {c.Name} |";
+                segment = $" {c.Name} |";
+                line += $"{new string('-', segment.Length - 1)}+";
+                header += segment;
             }
 
-            string header = line;
-            message.AppendLine(line);
-            
-            line = new string('-', header.Length);
-            int index = 0;
-            while (header.Substring(index).Length != 0 && header.Substring(index).Contains('|'))
-            {
-                index = header.IndexOf('|', index);
-                line.ToCharArray()[index] = '+';
-            }
-            
+            line = line.Substring(0, line.Length - 1) + '|'; 
+
+            message.AppendLine(header);
             message.AppendLine(line);
 
             foreach (var p in players)

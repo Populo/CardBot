@@ -4,6 +4,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 
@@ -13,7 +14,7 @@ namespace CardBot.Modules
     {
         private static NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
 
-        public int FistMeDaddy(SocketUser sender, SocketUser user, string reason, Cards card, ulong serverId)
+        public int GiveCard(SocketUser sender, SocketUser user, string reason, Cards card, ulong serverId)
         {
             try
             {
@@ -74,32 +75,11 @@ namespace CardBot.Modules
                 {
                     Id = Guid.NewGuid(),
                     Name = sender.Username
-                }); ;
-
-                db.SaveChanges();
-
-                return u.Entity;
-            }
-            catch (Exception e)
-            {
-                Logger.Error(e);
-                return null;
-            }
-        }
-
-        private Cards CreateCard(string color, CardContext db)
-        {
-            try
-            {
-                var c = db.Cards.Add(new Cards
-                {
-                    Id = Guid.NewGuid(),
-                    Name = color
                 });
 
                 db.SaveChanges();
 
-                return c.Entity;
+                return u.Entity;
             }
             catch (Exception e)
             {
@@ -199,102 +179,6 @@ namespace CardBot.Modules
             entries = entries.OrderByDescending(e => e.Score).ToList();
             
             return entries;
-        }
-
-        public string DisplayLeaderboard(ulong serverId)
-        {
-            try
-            {
-                using (var db = new CardContext())
-                {
-                    var all = db.CardGivings.AsQueryable().Where(c => c.ServerId == serverId).ToList();
-                    if (all.Count > 0)
-                    {
-                        var set = BuildScoreboard(all);
-
-                        var message = "Current Leaderboard:\n" +
-                                      "```" +
-                                      "Username|Red Cards|Yellow Cards\n";
-
-                        foreach (var s in set)
-                        {
-                            message += $"{s.Key}|{s.Value[1]}|{s.Value[0]}\n";
-                        }
-
-                        message += "```";
-
-                        return message;
-                    }
-                    return "No cards :(";
-                }
-            }
-            catch (Exception e)
-            {
-                Logger.Error(e);
-                return "That didn't work. frown :(";
-            }
-        }
-
-        private Dictionary<string, int[]> BuildScoreboard(List<CardGivings> set)
-        {
-            var s = new Dictionary<string, int[]>();
-            using (var db = new CardContext())
-            {
-                foreach (var i in set)
-                {
-                    var user = db.Users.AsQueryable().Where(u => u.Id == i.DegenerateId).Select(u => u.Name).FirstOrDefault();
-                    var card = db.Cards.AsQueryable().Where(c => c.Id == i.CardId).Select(c => c.Name).FirstOrDefault();
-
-                    if (!s.ContainsKey(user))
-                    {
-                        s.Add(user, new[] { 0, 0 });
-                    }
-
-                    if (card == "Yellow")
-                    {
-                        s[user][0]++;
-                    }
-                    else if (card == "Red")
-                    {
-                        s[user][1]++;
-                    }
-                }
-            }
-
-            s = SortScoreboard(s);
-
-            return s;
-        }
-
-        private Dictionary<string, int[]> SortScoreboard(Dictionary<string, int[]> set)
-        {
-            var scoreboard = new Dictionary<string, int[]>();
-
-            var scores = CalculateScores(set);
-
-            var sorted = from s in scores orderby s.Value descending select s;
-
-            foreach (var i in sorted)
-            {
-                scoreboard.Add(i.Key, set[i.Key]);
-            }
-
-            return scoreboard;
-        }
-
-        private Dictionary<string, int> CalculateScores(Dictionary<string, int[]> set)
-        {
-            var s = new Dictionary<string, int>();
-
-            foreach(var n in set)
-            {
-                int score = n.Value[0];
-                score += (n.Value[1] * 10);
-
-                s.Add(n.Key, score);
-            }
-
-            return s;
         }
 
         public string GetHistory(string user, int toShow, ulong serverId)

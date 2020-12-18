@@ -3,19 +3,22 @@ using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
 using System;
+using System.Globalization;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
+using CardBot.Singletons;
 
 namespace CardBot.Modules
 {
     public class Commands : ModuleBase<SocketCommandContext>
     {
-        private string CardRole = "CardBot",
+        public static string CardRole = "CardBot",
             CardRoleAdmin = "CardAdmin";
 
-        private string CardChannel = "card-tracker",
+        public static string CardChannel = "card-tracker",
             CardErrorChannel = "card-tracker-errors";
+
+        private const int MAX_CHALLENGE_TIME = 3;
 
         private readonly Emoji Frown = new Emoji("😦");
         private readonly Emoji Smile = new Emoji("🙂");
@@ -25,6 +28,7 @@ namespace CardBot.Modules
 
         private static NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
 
+        #region UserCommands
         [Command("challenge")]
         public async Task ChallengeCard(string user, string newColor, params string[] reason)
         {
@@ -64,6 +68,12 @@ namespace CardBot.Modules
                     .Where(c => c.DegenerateId.Equals(db.Users.AsQueryable().Where(u => u.Name == user1.Username).Select(u => u.Id).First()))
                     .OrderBy(c => c.TimeStamp).Last();
 
+                if (card.TimeStamp.AddHours(MAX_CHALLENGE_TIME) < DateTime.Now)
+                {
+                    await ReplyAsync("This card is too old to challenge.");
+                    return;
+                }
+                
                 card.Card = db.Cards.AsQueryable().Where(c => c.Id == card.CardId).First();
                 card.Degenerate = db.Users.AsQueryable().Where(u => u.Id == card.DegenerateId).First();
                 card.Giver = db.Users.AsQueryable().Where(u => u.Id == card.GiverId).First();
@@ -85,8 +95,15 @@ namespace CardBot.Modules
                                            $"Place your votes below.  The votes will be counted in 1 hour.");
             await message.AddReactionsAsync(new[] { new Emoji("👍"), new Emoji("👎") });
 
-            var challenges = ChallengeSingleton.Instance;
-            challenges.NewChallenge(new Challenge(card, Context.User, newCard, message.Id, Context));
+            var polls = PollSingleton.Instance;
+            polls.NewPoll(new Poll(
+                    Context.User,
+                    PollType.CHALLENGE,
+                    Context,
+                    message.Id,
+                    card,
+                    newCard
+                ));
         }
 
         [Command("score")]
@@ -95,69 +112,6 @@ namespace CardBot.Modules
             await Context.Message.AddReactionAsync(Smile);
             var serverId = Context.Guild.Id;
             await ReplyAsync(Leaderboard.BuildLeaderboard(serverId));
-        }
-
-        private SocketUser GetUser(string user)
-        {
-            var mention = Context.Message.MentionedUsers.FirstOrDefault(x => x.Mention == user);
-            if (mention == null)
-            {
-                var role = Context.Guild.Roles.Where(r => r.Name == CardRole).FirstOrDefault();
-                mention = Context.Guild.Users
-                    .Where(x => x.Username.Contains(user, StringComparison.CurrentCultureIgnoreCase) || x.Nickname.Contains(user, StringComparison.CurrentCultureIgnoreCase))
-                    .Where(x => x.Roles.Contains(role))
-                    .FirstOrDefault();
-            }
-            if (mention == null)
-            {
-                var splittedString = user.Split('@');
-                user = $"{splittedString[0]}@!{splittedString[1]}";
-                mention = Context.Message.MentionedUsers.FirstOrDefault(x => x.Mention == user);
-            }
-
-            return mention;
-        }
-
-        private Cards GetCard(string color, ulong serverId)
-        {
-            Cards card = null;
-            
-            using (var db = new CardContext())
-            {
-                card = db.Cards.AsQueryable()
-                    .Where(c => c.ServerId == serverId)
-                    .Where(c => c.Name.ToLower() == color.ToLower())
-                    .FirstOrDefault();
-            }
-
-            return card;
-        }
-
-        private async Task AddCard(SocketUser user, Cards card, string reason)
-        {
-            IEmote[] emotes = new IEmote[2]
-            {
-                Frown,
-                new Emoji(card.Emoji)
-            };
-            
-            await Context.Message.AddReactionsAsync(emotes);
-
-            var sender = Context.User;
-            var serverId = Context.Guild.Id;
-            var adminChannel = Context.Guild.Channels.First(c => c.Name == CardErrorChannel);
-
-            try
-            {
-                var cardCount = Leaderboard.FistMeDaddy(sender, user, reason, card, serverId);
-
-                await ReplyAsync($"{user.Mention} now has {cardCount} {card.Name} cards.");
-            }
-            catch (Exception e)
-            {
-                await Context.Guild.GetTextChannel(adminChannel.Id).SendMessageAsync(e.Message);
-                await ReplyAsync("That didnt work. frown :(");
-            }
         }
 
         [Command("history")]
@@ -196,11 +150,85 @@ namespace CardBot.Modules
             await AddCard(mention, card, r);
         }
         
+        #endregion
+
+        #region Utility
+        private bool IsAdminUser(SocketUser user)
+        {
+            return Context.Guild.Roles.First(r => r.Name == CardRoleAdmin).Members.Contains(user);
+        }
+        
+        
+        private Cards GetCard(string color, ulong serverId)
+        {
+            Cards card = null;
+            
+            using (var db = new CardContext())
+            {
+                card = db.Cards.AsQueryable()
+                    .Where(c => c.ServerId == serverId)
+                    .Where(c => c.Name.ToLower() == color.ToLower())
+                    .FirstOrDefault();
+            }
+
+            return card;
+        }
+        
+        private SocketUser GetUser(string user)
+        {
+            var mention = Context.Message.MentionedUsers.FirstOrDefault(x => x.Mention == user);
+            if (mention == null)
+            {
+                var role = Context.Guild.Roles.Where(r => r.Name == CardRole).FirstOrDefault();
+                mention = Context.Guild.Users
+                    .Where(x => x.Username.Contains(user, StringComparison.CurrentCultureIgnoreCase) || x.Nickname.Contains(user, StringComparison.CurrentCultureIgnoreCase))
+                    .Where(x => x.Roles.Contains(role))
+                    .FirstOrDefault();
+            }
+            if (mention == null)
+            {
+                var splittedString = user.Split('@');
+                user = $"{splittedString[0]}@!{splittedString[1]}";
+                mention = Context.Message.MentionedUsers.FirstOrDefault(x => x.Mention == user);
+            }
+
+            return mention;
+        }
+
+        private async Task AddCard(SocketUser user, Cards card, string reason)
+        {
+            IEmote[] emotes = new IEmote[2]
+            {
+                Frown,
+                new Emoji(card.Emoji)
+            };
+            
+            await Context.Message.AddReactionsAsync(emotes);
+
+            var sender = Context.User;
+            var serverId = Context.Guild.Id;
+            var adminChannel = Context.Guild.Channels.First(c => c.Name == CardErrorChannel);
+
+            try
+            {
+                var cardCount = Leaderboard.GiveCard(sender, user, reason, card, serverId);
+
+                await ReplyAsync($"{user.Mention} now has {cardCount} {card.Name} cards.");
+            }
+            catch (Exception e)
+            {
+                await Context.Guild.GetTextChannel(adminChannel.Id).SendMessageAsync(e.Message);
+                await ReplyAsync("That didnt work. frown :(");
+            }
+        }
+        
+        #endregion
+
         #region AdminCommands
         [Command("create")]
         public async Task CreateCard(string name, int value, string emoji)
         {
-            if (!IsAdminUser(Context.Message.Author))
+            if (!IsAdminUser(Context.User))
             {
                 await ReplyAsync("You don't have permission to do that :(");
                 return;
@@ -212,36 +240,38 @@ namespace CardBot.Modules
             using (var db = new CardContext())
             {
                 c = db.Cards.AsQueryable()
-                    .First(card => card.Name == name);
+                    .FirstOrDefault(card => card.Name.ToUpper() == name.ToUpper());
 
                 if (c != null)
                 {
                     await ReplyAsync($"{name} card already exists");
+                    return;
                 }
-                
-                c = new Cards()
-                {
-                    Name = name,
-                    Emoji = emoji.ToString(),
-                    Value = value,
-                    Id = Guid.NewGuid(),
-                    ServerId = serverId
-                };
-
-                db.Cards.Add(c);
-
-                await db.SaveChangesAsync();
             }
-
-            c = null;
-            using (var db = new CardContext())
+            
+            c = new Cards()
             {
-                c = db.Cards.AsQueryable()
-                    .First(c => c.Name == name);
-            }
+                Name = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(name),
+                Emoji = emoji,
+                Value = value,
+                Id = Guid.NewGuid(),
+                ServerId = serverId
+            };
+            
+            var roleTag = Context.Guild.Roles.First(r => r.Name == CardRole).Mention;
 
-            await ReplyAsync($"Created {c.Name} card with a value of {c.Value} yellow cards.");
-            await Context.Message.AddReactionAsync(new Emoji(c.Emoji));
+            var message = await ReplyAsync($"{roleTag}: {Context.User.Mention} is proposing to create a {c.Name} card worth {c.Value} points.\n\n" +
+                                           $"Place your votes below.  The votes will be counted in 1 hour.");
+            await message.AddReactionsAsync(new[] { new Emoji("👍"), new Emoji("👎") });
+
+            var polls = PollSingleton.Instance;
+            polls.NewPoll(new Poll(
+                Context.User,
+                PollType.CREATE,
+                Context,
+                message.Id,
+                null,
+                c));
         }
 
         [Command("delete")]
@@ -253,20 +283,33 @@ namespace CardBot.Modules
                 return;
             }
 
-            if (!ConfirmChange().Result)
-            {
-                await ReplyAsync("Change not confirmed.");
-                return;
-            }
-
+            Cards c = null;
+            
             using (var db = new CardContext())
             {
-                Cards c = db.Cards.AsQueryable()
-                    .First(card => card.Name == color);
-                db.Cards.Remove(c);
-                db.CardGivings.RemoveRange(db.CardGivings.AsQueryable()
-                    .Where(g => g.Card == c));
+                c = GetCard(color, Context.Guild.Id);
+
+                if (null == c)
+                {
+                    await ReplyAsync("That card does not exist :(");
+                    return;
+                }
             }
+            
+            var roleTag = Context.Guild.Roles.First(r => r.Name == CardRole).Mention;
+
+            var message = await ReplyAsync($"{roleTag}: {Context.User.Mention} is proposing to delete the {c.Name} card\n\n" +
+                                           $"Place your votes below.  The votes will be counted in 1 hour.");
+            await message.AddReactionsAsync(new[] { new Emoji("👍"), new Emoji("👎") });
+            
+            var polls = PollSingleton.Instance;
+            polls.NewPoll(new Poll(
+                Context.User,
+                PollType.DELETE,
+                Context,
+                message.Id,
+                null,
+                c));
         }
 
         [Command("value")]
@@ -278,52 +321,35 @@ namespace CardBot.Modules
                 return;
             }
 
-            if (!ConfirmChange().Result)
-            {
-                await ReplyAsync("Change not confirmed.");
-                return;
-            }
-
-            Cards c;
+            Cards c, newCard;
             using (var db = new CardContext())
             {
-                c = db.Cards.AsQueryable()
-                    .First(card => card.Name == color);
+                c = GetCard(color, Context.Guild.Id);
 
-                c.Value = newVal;
-
-                db.Cards.Update(c);
-
-                db.SaveChanges();
+                if (null == c)
+                {
+                    await ReplyAsync("That card does not exist :(");
+                    return;
+                }
+                
+                newCard = c;
+                newCard.Value = newVal;
             }
 
-            await ReplyAsync($"{c.Name} cards are now worth {c.Value} yellow cards.");
-        }
+            var roleTag = Context.Guild.Roles.First(r => r.Name == CardRole).Mention;
 
-        private async Task<bool> ConfirmChange()
-        {
-            bool confirmed = false;
+            var message = await ReplyAsync($"{roleTag}: {Context.User.Mention} is proposing to change the value of the {c.Name} card from {c.Value} to {newVal}\n\n" +
+                                           $"Place your votes below.  The votes will be counted in 1 hour.");
+            await message.AddReactionsAsync(new[] { new Emoji("👍"), new Emoji("👎") });
             
-            Random r = new Random();
-            char randomChar = (char) r.Next(97, 123);
-            
-            await ReplyAsync($"To proceed reply with `{randomChar}`.");
-            Thread.Sleep(10 * 1000);
-
-            var latestMessages = Context.Channel.GetMessagesAsync(5).GetAsyncEnumerator().Current;
-            var m = latestMessages.Where(m => m.Author == Context.User).Where(m => m.Content == randomChar.ToString()).FirstOrDefault();
-            if (m != null)
-            {
-                confirmed = true;
-                await m.AddReactionAsync(new Emoji("👍"));
-            }
-            
-            return confirmed;
-        }
-
-        private bool IsAdminUser(SocketUser user)
-        {
-            return Context.Guild.Roles.First(r => r.Name == CardRoleAdmin).Members.Contains(user);
+            var polls = PollSingleton.Instance;
+            polls.NewPoll(new Poll(
+                Context.User,
+                PollType.VALUE,
+                Context,
+                message.Id,
+                null,
+                newCard));
         }
         #endregion
     }

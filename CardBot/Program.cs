@@ -4,10 +4,10 @@ using Discord.Commands;
 using Discord.WebSocket;
 using Microsoft.Extensions.DependencyInjection;
 using NLog;
-using SQLitePCL;
 using System;
 using System.Reflection;
 using System.Threading.Tasks;
+using CardBot.Singletons;
 
 namespace CardBot
 {
@@ -30,7 +30,7 @@ namespace CardBot
 
             ConfigureLogger();
             System.AppDomain.CurrentDomain.UnhandledException += GlobalHandler;
-            ChallengeSingleton s = ChallengeSingleton.Instance;
+            PollSingleton s = PollSingleton.Instance;
 
             new Program().RunBotAsync(args[0]).GetAwaiter().GetResult();
         }

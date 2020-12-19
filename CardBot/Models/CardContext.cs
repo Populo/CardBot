@@ -3,7 +3,7 @@ using System;
 
 namespace CardBot.Models
 {
-    public class DataContext : DbContext
+    public class CardContext : DbContext
     {
         public DbSet<CardGivings> CardGivings { get; set; }
         public DbSet<Cards> Cards { get; set; }
@@ -22,6 +22,9 @@ namespace CardBot.Models
     {
         public Guid Id { get; set; }
         public string Name { get; set; }
+        public ulong ServerId { get; set; }
+        public string Emoji { get; set; }
+        public int Value { get; set; }
     }
 
     public class Users

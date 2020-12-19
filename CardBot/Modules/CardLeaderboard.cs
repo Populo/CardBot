@@ -4,7 +4,9 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Linq;
+using System.Text;
 
 namespace CardBot.Modules
 {
@@ -12,15 +14,15 @@ namespace CardBot.Modules
     {
         private static NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
 
-        public int FistMeDaddy(SocketUser sender, SocketUser user, string reason, string color, ulong serverId)
+        public int GiveCard(SocketUser sender, SocketUser user, string reason, Cards card, ulong serverId)
         {
             try
             {
-                using (var db = new DataContext())
+                using (var db = new CardContext())
                 {
-                    var card = db.Cards.AsQueryable().Where(c => c.Name == color).FirstOrDefault();
                     var giver = db.Users.AsQueryable().Where(u => u.Name == sender.Username).FirstOrDefault();
                     var degenerate = db.Users.AsQueryable().Where(u => u.Name == user.Username).FirstOrDefault();
+                    var givenCard = db.Cards.AsQueryable().Where(c => c.Id == card.Id).FirstOrDefault();
 
                     if (giver == null)
                     {
@@ -31,17 +33,12 @@ namespace CardBot.Modules
                     {
                         degenerate = CreateUser(user, db);
                     }
-
-                    if (card == null)
+                    
+                    var newCard = new CardGivings
                     {
-                        card = CreateCard(color, db);
-                    }
-
-                    db.CardGivings.Add(new CardGivings
-                    {
-                        Id = new Guid(),
-                        CardId = card.Id,
-                        Card = card,
+                        Id = Guid.NewGuid(),
+                        CardId = givenCard.Id,
+                        Card = givenCard,
                         GiverId = giver.Id,
                         Giver = giver,
                         DegenerateId = degenerate.Id,
@@ -49,29 +46,36 @@ namespace CardBot.Modules
                         CardReason = reason,
                         ServerId = serverId,
                         TimeStamp = DateTime.Now
-                    });
+                    };
+
+                    db.CardGivings.Add(newCard);
 
                     db.SaveChanges();
 
-                    return db.CardGivings.AsQueryable().Where(c => c.Degenerate.Id == degenerate.Id).Where(c => c.Card.Id == card.Id).Where(c => c.ServerId == serverId).Count();
+                    return db.CardGivings.AsQueryable()
+                        .Where(c => c.Degenerate.Id == degenerate.Id)
+                        .Where(c => c.Card.Id == card.Id)
+                        .Where(c => c.ServerId == serverId)
+                        .Count();
                 }
             }
             catch (Exception e)
             {
                 Logger.Error(e);
+                throw;
                 return 0;
             }
         }
 
-        private Users CreateUser(SocketUser sender, DataContext db)
+        private Users CreateUser(SocketUser sender, CardContext db)
         {
             try
             {
                 var u = db.Users.Add(new Users
                 {
-                    Id = new Guid(),
+                    Id = Guid.NewGuid(),
                     Name = sender.Username
-                }); ;
+                });
 
                 db.SaveChanges();
 
@@ -84,128 +88,109 @@ namespace CardBot.Modules
             }
         }
 
-        private Cards CreateCard(string color, DataContext db)
+        public string BuildLeaderboard(ulong serverId)
         {
-            try
+            StringBuilder message = new StringBuilder();
+            
+            List<Cards> cards;
+            List<CardGivings> givings;
+            List<Users> users;
+            
+            using (var db = new CardContext())
             {
-                var c = db.Cards.Add(new Cards
+                cards = db.Cards.AsQueryable()
+                    .Where(c => c.ServerId == serverId).OrderByDescending(c => c.Value).ToList();
+
+                givings = db.CardGivings.AsQueryable()
+                    .Where(c => c.ServerId == serverId).ToList();
+
+                if (null == givings || givings.Count == 0)
                 {
-                    Id = new Guid(),
-                    Name = color
-                });
-
-                db.SaveChanges();
-
-                return c.Entity;
-            }
-            catch (Exception e)
-            {
-                Logger.Error(e);
-                return null;
-            }
-        }
-
-        public string DisplayLeaderboard(ulong serverId)
-        {
-            try
-            {
-                using (var db = new DataContext())
-                {
-                    var all = db.CardGivings.AsQueryable().Where(c => c.ServerId == serverId).ToList();
-                    if (all.Count > 0)
-                    {
-                        var set = BuildScoreboard(all);
-
-                        var message = "Current Leaderboard:\n" +
-                                      "```" +
-                                      "Username|Red Cards|Yellow Cards\n";
-
-                        foreach (var s in set)
-                        {
-                            message += $"{s.Key}|{s.Value[1]}|{s.Value[0]}\n";
-                        }
-
-                        message += "```";
-
-                        return message;
-                    }
-                    return "No cards :(";
+                    return "Nobody has any cards.";
                 }
+
+                var userIds = givings.Select(u => u.DegenerateId).Distinct().ToList();
+                users = db.Users.AsQueryable()
+                    .Where(u => userIds.Any(i => i == u.Id)).ToList();
             }
-            catch (Exception e)
+
+            message.Append("Current Leaderboard:\n```");
+
+            int longestUser = users.OrderByDescending(u => u.Name.Length).First().Name.Length + 1;
+            var players = BuildPlayerInfo(givings, users, cards);
+
+            string userHeader = "User";
+            string scoreHeader = "Score";
+            int scoreWidth = scoreHeader.Length;
+            
+            if (longestUser < userHeader.Length) longestUser = userHeader.Length;
+            string longestScore = players.OrderByDescending(p => p.Score).First().Score.ToString();
+            if (longestScore.Length > scoreWidth)
             {
-                Logger.Error(e);
-                return "That didn't work. frown :(";
+                scoreWidth = longestScore.Length;
             }
+            
+            
+            // build header
+            string header = "", line = "", segment = "";
+            header = $"| {userHeader.CenterString(longestUser)} |";
+            line = $"|{new string('-', header.Length - 2)}+";
+            segment = $" {scoreHeader.CenterString(scoreWidth)} |";
+            line += $"{new string('-', segment.Length - 1)}+";
+            header += segment;
+            foreach (var c in cards)
+            {
+                segment = $" {c.Name} |";
+                line += $"{new string('-', segment.Length - 1)}+";
+                header += segment;
+            }
+
+            line = line.Substring(0, line.Length - 1) + '|'; 
+
+            message.AppendLine(header);
+            message.AppendLine(line);
+
+            foreach (var p in players)
+            {
+                message.AppendLine(p.PrintMarkdownRow(longestUser, scoreWidth));
+            }
+            
+            // end code block
+            message.Append("```");
+
+            return message.ToString();
         }
 
-        private Dictionary<string, int[]> BuildScoreboard(List<CardGivings> set)
+        private List<LeaderboardEntry> BuildPlayerInfo(List<CardGivings> givings, List<Users> users, List<Cards> cards)
         {
-            var s = new Dictionary<string, int[]>();
-            using (var db = new DataContext())
+            List<LeaderboardEntry> entries = new List<LeaderboardEntry>();
+
+            LeaderboardEntry current = new LeaderboardEntry();
+            int count = 0;
+            
+            foreach (var u in users)
             {
-                foreach (var i in set)
+                current.User = u;
+                current.Givings = new Dictionary<Cards, int>();
+                foreach (var c in cards)
                 {
-                    var user = db.Users.AsQueryable().Where(u => u.Id == i.DegenerateId).Select(u => u.Name).FirstOrDefault();
-                    var card = db.Cards.AsQueryable().Where(c => c.Id == i.CardId).Select(c => c.Name).FirstOrDefault();
-
-                    if (!s.ContainsKey(user))
-                    {
-                        s.Add(user, new[] { 0, 0 });
-                    }
-
-                    if (card == "Yellow")
-                    {
-                        s[user][0]++;
-                    }
-                    else if (card == "Red")
-                    {
-                        s[user][1]++;
-                    }
+                    count = givings.Where(g => g.DegenerateId == u.Id).Where(g => g.CardId == c.Id).Count();
+                    current.Givings.Add(c, count);
                 }
+                entries.Add(current);
+                current = new LeaderboardEntry();
             }
 
-            s = SortScoreboard(s);
-
-            return s;
-        }
-
-        private Dictionary<string, int[]> SortScoreboard(Dictionary<string, int[]> set)
-        {
-            var scoreboard = new Dictionary<string, int[]>();
-
-            var scores = CalculateScores(set);
-
-            var sorted = from s in scores orderby s.Value descending select s;
-
-            foreach (var i in sorted)
-            {
-                scoreboard.Add(i.Key, set[i.Key]);
-            }
-
-            return scoreboard;
-        }
-
-        private Dictionary<string, int> CalculateScores(Dictionary<string, int[]> set)
-        {
-            var s = new Dictionary<string, int>();
-
-            foreach(var n in set)
-            {
-                int score = n.Value[0];
-                score += (n.Value[1] * 10);
-
-                s.Add(n.Key, score);
-            }
-
-            return s;
+            entries = entries.OrderByDescending(e => e.Score).ToList();
+            
+            return entries;
         }
 
         public string GetHistory(string user, int toShow, ulong serverId)
         {
             string message = $"History for {user}:\n";
 
-            using (var db = new DataContext())
+            using (var db = new CardContext())
             {
                 var history = db.CardGivings.AsQueryable()
                                             .Where(g => g.Degenerate.Id == db.Users.AsQueryable()

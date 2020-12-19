@@ -4,16 +4,16 @@ using Discord.Commands;
 using Discord.WebSocket;
 using Microsoft.Extensions.DependencyInjection;
 using NLog;
-using SQLitePCL;
 using System;
 using System.Reflection;
 using System.Threading.Tasks;
+using CardBot.Singletons;
 
 namespace CardBot
 {
     class Program
     {
-        private const string prefix = "!";
+        private readonly string _prefix = "!";
 
         private DiscordSocketClient _client;
         private CommandService _commands;
@@ -30,7 +30,7 @@ namespace CardBot
 
             ConfigureLogger();
             System.AppDomain.CurrentDomain.UnhandledException += GlobalHandler;
-            ChallengeSingleton s = ChallengeSingleton.Instance;
+            PollSingleton s = PollSingleton.Instance;
 
             new Program().RunBotAsync(args[0]).GetAwaiter().GetResult();
         }
@@ -64,7 +64,7 @@ namespace CardBot
                 .AddSingleton(_commands)
                 .BuildServiceProvider();
 
-            _client.Log += Bot_Log;
+            _client.Log += BotLog;
 
             await RegisterCommandsAsync();
 
@@ -90,7 +90,7 @@ namespace CardBot
             var channel = context.Channel;
             int argPos = 0;
 
-            if (message.HasStringPrefix(prefix, ref argPos))
+            if (message.HasStringPrefix(_prefix, ref argPos))
             {
                 Logger.Info($"Command issued by {arg.Author} in #{arg.Channel}: {arg.Content}");
                 if (channel.Name == "card-tracker")
@@ -101,7 +101,7 @@ namespace CardBot
             }
         }
 
-        private Task Bot_Log(LogMessage arg)
+        private Task BotLog(LogMessage arg)
         {
             Logger.Info(arg);
             return Task.CompletedTask;

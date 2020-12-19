@@ -122,7 +122,7 @@ namespace CardBot.Models
                     {
                         c = db.Cards
                             .AsQueryable()
-                            .Where(card => string.Equals(card.Name, Card.Name, StringComparison.CurrentCultureIgnoreCase))
+                            .Where(card => card.Id == Card.Id)
                             .FirstOrDefault();
 
                         if (null == c)

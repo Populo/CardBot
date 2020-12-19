@@ -3,8 +3,10 @@ using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using CardBot.Singletons;
 
@@ -50,7 +52,9 @@ namespace CardBot.Modules
                 using (var db = new CardContext())
                 {
                     newCard = db.Cards.AsQueryable()
-                        .First(c => c.Name == newColor);
+                        .Where(c => c.Name.ToUpper() == newColor.ToUpper())
+                        .Where(c => c.ServerId == Context.Guild.Id)
+                        .FirstOrDefault();
                 }
             }
 
@@ -65,7 +69,9 @@ namespace CardBot.Modules
             using (CardContext db = new CardContext())
             {
                 card = db.CardGivings.AsQueryable()
-                    .Where(c => c.DegenerateId.Equals(db.Users.AsQueryable().Where(u => u.Name == user1.Username).Select(u => u.Id).First()))
+                    .Where(c => c.DegenerateId.Equals(db.Users.AsQueryable()
+                        .Where(u => u.Name == user1.Username)
+                        .Select(u => u.Id).First()))
                     .OrderBy(c => c.TimeStamp).Last();
 
                 if (card.TimeStamp.AddHours(MAX_CHALLENGE_TIME) < DateTime.Now)
@@ -78,7 +84,7 @@ namespace CardBot.Modules
                 card.Degenerate = db.Users.AsQueryable().Where(u => u.Id == card.DegenerateId).First();
                 card.Giver = db.Users.AsQueryable().Where(u => u.Id == card.GiverId).First();
 
-                if (card.Card.Id == newCard.Id)
+                if (null != newCard && card.Card.Id == newCard.Id)
                 {
                     await ReplyAsync("You cannot change the card to the same color");
                     return;
@@ -90,8 +96,8 @@ namespace CardBot.Modules
                 : $"convert their {card.Card.Name} card to a {newCard.Name} card";
             var roleTag = Context.Guild.Roles.First(r => r.Name == CardRole).Mention;
 
-            var message = await ReplyAsync($"{roleTag}: {Context.User.Mention} has challenged {user1.Mention}'s last {card.Card.Name} card.  {Context.User.Username} is proposing to {proposal}.\n\n" +
-                                           $"{Context.User.Username}'s reasoning:\n ```{reasonForChallenge}```\n\n" +
+            var message = await ReplyAsync($"{roleTag}: {Context.User.Mention} has challenged {user1.Mention}'s last {card.Card.Name} card.  {Context.User.Username} is proposing to {proposal}.\n" +
+                                           $"{Context.User.Username}'s reasoning: ```{reasonForChallenge}```\n" +
                                            $"Place your votes below.  The votes will be counted in 1 hour.");
             await message.AddReactionsAsync(new[] { new Emoji("👍"), new Emoji("👎") });
 
@@ -148,6 +154,137 @@ namespace CardBot.Modules
             }
 
             await AddCard(mention, card, r);
+        }
+
+        [Command("list")]
+        public async Task GetCards()
+        {
+            List<Cards> cards;
+
+            using (var db = new CardContext())
+            {
+                cards = db.Cards.AsQueryable()
+                    .Where(c => c.ServerId == Context.Guild.Id)
+                    .OrderByDescending(c => c.Value)
+                    .ToList();
+            }
+
+            if (null == cards || cards.Count == 0)
+            {
+                await ReplyAsync("There are no cards for this server. Create one with !create.");
+                return;
+            }
+    
+            var message = new StringBuilder();
+            
+            string segment, line, header;
+            string cardHeader = "Card";
+            string valueHeader = "Value";
+
+            int longestCard = cards.OrderByDescending(c => c.Name.Length).First().Name.Length;
+            int longestValue = cards.OrderByDescending(c => c.Value.ToString().Length).First().Value.ToString().Length;
+
+            if (longestCard < cardHeader.Length) longestCard = cardHeader.Length;
+            if (longestValue < valueHeader.Length) longestValue = valueHeader.Length;
+
+            segment = $"| {cardHeader.CenterString(longestCard)} |";
+            line = $"|{new string('-', segment.Length-2)}+";
+            header = segment;
+
+            segment = $" {valueHeader.CenterString(longestValue)} |";
+            line += $"{new string('-', segment.Length-1)}|";
+            header += segment;
+
+            message.AppendLine(header).AppendLine(line);
+            foreach (var c in cards)
+            {
+                message.AppendLine(
+                    $"| {c.Name.CenterString(longestCard)} | {c.Value.ToString().CenterString(longestValue)} |");
+            }
+
+            await ReplyAsync($"The following cards are available:\n```{message}```");
+        }
+
+        [Command("info")]
+        public async Task ShowInfo()
+        {
+            var message = new StringBuilder();
+
+            message.AppendLine("Welcome to CardBot 2.0");
+            message.AppendLine(
+                "The purpose of this bot is to keep track of heinous things you and/or your friends say.");
+            message.AppendLine("See the github readme below for more information on setup");
+            message.AppendLine("Made by Populo#0001");
+            message.AppendLine("https://github.com/cstaudigel/CardBot");
+
+            await Context.Message.AddReactionAsync(Smile);
+            await ReplyAsync(message.ToString());
+        }
+
+        [Command("help")]
+        public async Task GetHelp(params string[] command)
+        {
+            var message = new StringBuilder();
+
+            await Context.Message.AddReactionAsync(Smile);
+
+            if (command.Length == 0|| command[0].ToLower() == "help")
+            {
+                message.AppendLine("Available Commands:");
+                message.AppendLine("**help**: !help {command (optional)}");
+                message.AppendLine("**card**: !card {color} {@user} {reason}");
+                message.AppendLine("**score**: !score");
+                message.AppendLine("**history**: !history {@user} {cards to show (optional, default: 10)}");
+                message.AppendLine("**info**: !info");
+                message.AppendLine("**challenge**: !challenge {@user} {new card(remove/delete to delete card)} {reason}");
+                message.AppendLine("Available Commands: (CardAdmin role only)");
+                message.AppendLine("**create**: !create {color} {point value} {emoji}");
+                message.AppendLine("**value**: !value {color} {new point value}");
+                message.AppendLine("**delete**: !delete {color}");
+            }
+            else
+            {
+                string c = command[0].ToLower();
+                switch (c)
+                {
+                    case "card":
+                        message.AppendLine(
+                            "This command will give the tagged user a card of the indicated color for the provided reason and adds the value of the card to this user's score.");
+                        break;
+                    case "score":
+                        message.AppendLine(
+                            "This command will display a score board of all users in the channel with cards sorted highest score to lowest.");
+                        break;
+                    case "history":
+                        message.AppendLine(
+                            "This command will show the most recent 10 cards that the provided user has been given.  Provide a number after the user to change the 10.");
+                        break;
+                    case "info":
+                        message.AppendLine(
+                            "This command will show basic info about the bot including the author and the github repository.");
+                        break;
+                    case "challenge":
+                        message.AppendLine(
+                            "This command will allow you to challenge a card that anybody has received. Issuing a challenge will begin a poll that allows everybody with access to the text channel to vote in. Note that it only allows changing of the most recent card and must be done within 3 hours of the person receiving the card.");
+                        break;
+                    case "create":
+                        message.AppendLine(
+                            "This command is used by admins to create cards.  This will begin a poll that anybody with access to the text channel can vote in before creating the card.");
+                        break;
+                    case "value":
+                        message.AppendLine(
+                            "This command allows admins to change the value of existing cards.  This will begin a poll that anybody with access to the text channel can vote in before modifying the card.");
+                        break;
+                    case "delete":
+                        message.AppendLine(
+                            "This command allows admins to delete cards. THIS CANNOT BE UNDONE AND WILL RESULT IN ALL CARDS GIVEN OF THIS TYPE TO BE ERASED AS WELL. This will begin a poll that anybody with access to the text channel can vote in before deleting the card.");
+                        break;
+                    default:
+                        message.AppendLine("This command does not exist.");
+                        break;
+                }
+            }
+            await ReplyAsync(message.ToString());
         }
         
         #endregion
@@ -240,7 +377,9 @@ namespace CardBot.Modules
             using (var db = new CardContext())
             {
                 c = db.Cards.AsQueryable()
-                    .FirstOrDefault(card => card.Name.ToUpper() == name.ToUpper());
+                    .Where(card => card.Name.ToUpper() == name.ToUpper())
+                    .Where(card => card.ServerId == serverId)
+                    .FirstOrDefault();
 
                 if (c != null)
                 {
@@ -321,7 +460,7 @@ namespace CardBot.Modules
                 return;
             }
 
-            Cards c, newCard;
+            Cards c;
             using (var db = new CardContext())
             {
                 c = GetCard(color, Context.Guild.Id);
@@ -331,9 +470,6 @@ namespace CardBot.Modules
                     await ReplyAsync("That card does not exist :(");
                     return;
                 }
-                
-                newCard = c;
-                newCard.Value = newVal;
             }
 
             var roleTag = Context.Guild.Roles.First(r => r.Name == CardRole).Mention;
@@ -341,6 +477,9 @@ namespace CardBot.Modules
             var message = await ReplyAsync($"{roleTag}: {Context.User.Mention} is proposing to change the value of the {c.Name} card from {c.Value} to {newVal}\n\n" +
                                            $"Place your votes below.  The votes will be counted in 1 hour.");
             await message.AddReactionsAsync(new[] { new Emoji("👍"), new Emoji("👎") });
+
+            // i dont feel like dealing with memory and shallow/deep copy so this will go here
+            c.Value = newVal;
             
             var polls = PollSingleton.Instance;
             polls.NewPoll(new Poll(
@@ -349,7 +488,7 @@ namespace CardBot.Modules
                 Context,
                 message.Id,
                 null,
-                newCard));
+                c));
         }
         #endregion
     }

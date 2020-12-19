@@ -104,6 +104,11 @@ namespace CardBot.Modules
                 givings = db.CardGivings.AsQueryable()
                     .Where(c => c.ServerId == serverId).ToList();
 
+                if (null == givings || givings.Count == 0)
+                {
+                    return "Nobody has any cards.";
+                }
+
                 var userIds = givings.Select(u => u.DegenerateId).Distinct().ToList();
                 users = db.Users.AsQueryable()
                     .Where(u => userIds.Any(i => i == u.Id)).ToList();

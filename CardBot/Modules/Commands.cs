@@ -24,7 +24,6 @@ namespace CardBot.Modules
 
         private readonly Emoji Frown = new Emoji("😦");
         private readonly Emoji Smile = new Emoji("🙂");
-        private readonly ulong NoUTopiaServerId = 140642236978167808;
 
         private CardLeaderboard Leaderboard = new CardLeaderboard();
 
@@ -348,9 +347,10 @@ namespace CardBot.Modules
 
             try
             {
-                var cardCount = Leaderboard.GiveCard(sender, user, reason, card, serverId);
-
-                await ReplyAsync($"{user.Mention} now has {cardCount} {card.Name} cards.");
+                var cardCount = Leaderboard.GiveCard(sender, user, reason, card, serverId, Context);
+                if (cardCount != -1)
+                    await ReplyAsync($"{user.Mention} now has {cardCount} {card.Name} cards.");
+                
             }
             catch (Exception e)
             {

@@ -7,6 +7,9 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using CardBot.Singletons;
+using Discord;
+using Discord.Commands;
 
 namespace CardBot.Modules
 {
@@ -14,7 +17,7 @@ namespace CardBot.Modules
     {
         private static NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
 
-        public int GiveCard(SocketUser sender, SocketUser user, string reason, Cards card, ulong serverId)
+        public int GiveCard(SocketUser sender, SocketUser user, string reason, Cards card, ulong serverId, SocketCommandContext context)
         {
             try
             {
@@ -48,6 +51,28 @@ namespace CardBot.Modules
                         TimeStamp = DateTime.Now
                     };
 
+                    if (givenCard.Poll)
+                    {
+                        var roleTag = context.Guild.Roles.First(r => r.Name == Commands.CardRole).Mention;
+
+                        var message = context.Channel.SendMessageAsync($"{roleTag}: {context.User.Mention} is proposing to give {degenerate.Name} a {givenCard.Name} card worth {givenCard.Value} points.\n\n" + 
+                                                       $"Reason:```{newCard.CardReason}```\n" +
+                                                       $"Place your votes below.  The votes will be counted in {Poll.HOURS_OF_GIVE_POLL} hours.").Result;
+                        message.AddReactionsAsync(new[] { new Emoji("👍"), new Emoji("👎") });
+                        
+                        var ps = PollSingleton.Instance;
+                        ps.NewPoll(new Poll(
+                            sender,
+                            PollType.GIVE,
+                            context,
+                            message.Id,
+                            newCard,
+                            givenCard
+                        ));
+                        
+                        return -1;
+                    }
+
                     db.CardGivings.Add(newCard);
 
                     db.SaveChanges();
@@ -63,7 +88,6 @@ namespace CardBot.Modules
             {
                 Logger.Error(e);
                 throw;
-                return 0;
             }
         }
 

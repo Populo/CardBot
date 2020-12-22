@@ -11,16 +11,32 @@ namespace CardBot.Models
 {
     public class Poll
     {
+        public static int HOURS_OF_GIVE_POLL = 12;
+        
         private static NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
         
         private readonly DateTime _startTime;
-        
+
+        private int PollHours
+        {
+            get
+            {
+                switch (Type)
+                {
+                    case PollType.GIVE:
+                        return HOURS_OF_GIVE_POLL;
+                    default:
+                        return 1;
+                }
+            }
+        }
+
         public bool Triggered { get
         {
 #if DEBUG
             return _startTime.Add(new TimeSpan(0, 0, 10)) < DateTime.Now;
 #else
-            return _startTime.Add(new TimeSpan(1, 0, 0)) < DateTime.Now;
+            return _startTime.Add(new TimeSpan(PollHours, 0, 0)) < DateTime.Now;
 #endif
         } }
         
@@ -74,9 +90,56 @@ namespace CardBot.Models
                 case PollType.CREATE:
                     success = CreateCard();
                     break;
+                case PollType.GIVE:
+                    success = GivePollCard();
+                    break;
             }
 
             return success;
+        }
+
+        private bool GivePollCard()
+        {
+            var message = Context.Channel.GetMessageAsync(MessageId).Result;
+            try
+            {
+                using (var db = new CardContext())
+                {
+                    var newGiving = new CardGivings()
+                    {
+                        Card = CardGiving.Card,
+                        CardId = CardGiving.CardId,
+                        CardReason = CardGiving.CardReason,
+                        Degenerate = CardGiving.Degenerate,
+                        DegenerateId = CardGiving.DegenerateId,
+                        Giver = CardGiving.Giver,
+                        GiverId = CardGiving.GiverId,
+                        Id = CardGiving.Id,
+                        ServerId = CardGiving.ServerId,
+                        TimeStamp = CardGiving.TimeStamp
+                    };
+                    
+                    db.CardGivings.Add(newGiving);
+                    
+                    db.SaveChanges();
+                    
+                    message.Channel.SendMessageAsync($"{Context.Message.MentionedUsers.First()} has been given a {newGiving.Card.Name} card.");
+                }
+
+                return true;
+            }
+            catch (Exception e)
+            {
+                var server = Context.Guild.Channels.Where(c => c.Name == Commands.CardErrorChannel).FirstOrDefault();
+                if (null != server)
+                {
+                    IMessageChannel channel = (IMessageChannel) server;
+                    channel.SendMessageAsync(e.Message);
+                }
+
+                Logger.Log(LogLevel.Error, e);
+                return false;
+            }
         }
 
         private bool CreateCard()

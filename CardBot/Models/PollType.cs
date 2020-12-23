@@ -5,6 +5,7 @@
         CHALLENGE,
         VALUE,
         DELETE,
-        CREATE
+        CREATE,
+        GIVE
     }
 }

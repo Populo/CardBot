@@ -11,20 +11,36 @@ namespace CardBot.Models
 {
     public class Poll
     {
+        public static int HOURS_OF_GIVE_POLL = 12;
+        
         private static NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
         
         private readonly DateTime _startTime;
-        
+
+        private int PollHours
+        {
+            get
+            {
+                switch (Type)
+                {
+                    case PollType.GIVE:
+                        return HOURS_OF_GIVE_POLL;
+                    default:
+                        return 1;
+                }
+            }
+        }
+
         public bool Triggered { get
         {
 #if DEBUG
             return _startTime.Add(new TimeSpan(0, 0, 10)) < DateTime.Now;
 #else
-            return _startTime.Add(new TimeSpan(1, 0, 0)) < DateTime.Now;
+            return _startTime.Add(new TimeSpan(PollHours, 0, 0)) < DateTime.Now;
 #endif
         } }
         
-        public SocketUser Creator { get; }
+        public SocketUser Receiver { get; }
         public PollType Type { get; }
         public SocketCommandContext Context { get; }
         public ulong MessageId { get; }
@@ -33,9 +49,9 @@ namespace CardBot.Models
 
         public bool Majority => CountVotes();
 
-        public Poll(SocketUser creator, PollType type, SocketCommandContext context, ulong messageId, CardGivings cardGiving, Cards card)
+        public Poll(SocketUser receiver, PollType type, SocketCommandContext context, ulong messageId, CardGivings cardGiving, Cards card)
         {
-            Creator = creator;
+            Receiver = receiver;
             Type = type;
             Context = context;
             MessageId = messageId;
@@ -74,9 +90,43 @@ namespace CardBot.Models
                 case PollType.CREATE:
                     success = CreateCard();
                     break;
+                case PollType.GIVE:
+                    success = GivePollCard();
+                    break;
             }
 
             return success;
+        }
+
+        private bool GivePollCard()
+        {
+            var message = Context.Channel.GetMessageAsync(MessageId).Result;
+            var helper = new CardLeaderboard();
+            try
+            {
+                int totalCards = helper.GiveCard(Context.User, 
+                    Receiver, 
+                    CardGiving.CardReason,
+                    CardGiving.Card,
+                    CardGiving.ServerId, 
+                    Context);
+
+                message.Channel.SendMessageAsync($"{Receiver.Username} now has {totalCards} {CardGiving.Card.Name} cards.");
+
+                return true;
+            }
+            catch (Exception e)
+            {
+                var server = Context.Guild.Channels.Where(c => c.Name == Commands.CardErrorChannel).FirstOrDefault();
+                if (null != server)
+                {
+                    IMessageChannel channel = (IMessageChannel) server;
+                    channel.SendMessageAsync(e.Message);
+                }
+
+                Logger.Log(LogLevel.Error, e);
+                return false;
+            }
         }
 
         private bool CreateCard()
@@ -154,7 +204,7 @@ namespace CardBot.Models
 
                     db.SaveChanges();
                     
-                    message.Channel.SendMessageAsync($"{Creator.Username}'s challenge has been executed.");
+                    message.Channel.SendMessageAsync($"{Context.User.Username}'s challenge has been executed.");
                 }
 
                 return true;

@@ -24,7 +24,6 @@ namespace CardBot.Modules
 
         private readonly Emoji Frown = new Emoji("😦");
         private readonly Emoji Smile = new Emoji("🙂");
-        private readonly ulong NoUTopiaServerId = 140642236978167808;
 
         private CardLeaderboard Leaderboard = new CardLeaderboard();
 
@@ -63,7 +62,13 @@ namespace CardBot.Modules
                 await ReplyAsync($"Cannot find {newColor}. Does the card exist?");
             }
 
-            var user1 = GetUser(user);
+            var user1 = GetUser(user, Context);
+            if (null == user1)
+            {
+                await ReplyAsync($"Cannot find user {user}. This is a discord error not a database error.");
+                return;
+            }
+            
             CardGivings card;
 
             using (CardContext db = new CardContext())
@@ -103,7 +108,7 @@ namespace CardBot.Modules
 
             var polls = PollSingleton.Instance;
             polls.NewPoll(new Poll(
-                    Context.User,
+                    user1,
                     PollType.CHALLENGE,
                     Context,
                     message.Id,
@@ -125,7 +130,12 @@ namespace CardBot.Modules
         {
             await Context.Message.AddReactionAsync(Smile);
             var serverId = Context.Guild.Id;
-            var mention = GetUser(user);
+            var mention = GetUser(user, Context);
+            if (null == mention)
+            {
+                await ReplyAsync($"Cannot find user {user}. This is a discord error not a database error.");
+                return;
+            }
 
             var reply = Leaderboard.GetHistory(mention.Username, count, serverId);
 
@@ -144,16 +154,60 @@ namespace CardBot.Modules
             
             var serverId = Context.Guild.Id;
             
-            var mention = GetUser(user);
+            var mention = GetUser(user, Context);
+            if (null == mention)
+            {
+                await ReplyAsync($"Cannot find user {user}. This is a discord error not a database error.");
+                return;
+            }
+            
             var card = GetCard(color, serverId);
-
+            Cards failedPollCard = null;
+            
             if (card == null)
             {
                 await ReplyAsync("This card does not exist. Please create it with !create");
                 return;
             }
+            
+            if (!card.Poll)
+            {
+                await AddCard(mention, card, r);
+                return;
+            }
 
-            await AddCard(mention, card, r);
+            failedPollCard = GetCard(card.FailedId, serverId);
+            var dbUser_rec = GetDBUser(mention, new CardContext());
+            var dbUser_giv = GetDBUser(Context.User, new CardContext());
+            
+            var giving = new CardGivings()
+            {
+                Card = card,
+                CardId = card.Id,
+                CardReason = r,
+                Degenerate = dbUser_rec,
+                DegenerateId = dbUser_rec.Id,
+                Giver = dbUser_giv,
+                GiverId = dbUser_giv.Id,
+                Id = Guid.NewGuid(),
+                ServerId = serverId,
+                TimeStamp = DateTime.Now
+            };
+            
+            var roleTag = Context.Guild.Roles.First(r => r.Name == CardRole).Mention;
+
+            var message = await ReplyAsync($"{roleTag}: {Context.User.Mention} is proposing to give {mention.Mention} a {card.Name} card worth {card.Value} points.\n\n" +
+                                           $"Place your votes below.  The votes will be counted in {Poll.HOURS_OF_GIVE_POLL} hours.");
+            await message.AddReactionsAsync(new[] { new Emoji("👍"), new Emoji("👎") });
+
+            var polls = PollSingleton.Instance;
+            polls.NewPoll(new Poll(
+                mention,
+                PollType.GIVE,
+                Context,
+                message.Id,
+                giving,
+                failedPollCard));
         }
 
         [Command("list")]
@@ -238,7 +292,7 @@ namespace CardBot.Modules
                 message.AppendLine("**info**: !info");
                 message.AppendLine("**challenge**: !challenge {@user} {new card(remove/delete to delete card)} {reason}");
                 message.AppendLine("Available Commands: (CardAdmin role only)");
-                message.AppendLine("**create**: !create {color} {point value} {emoji}");
+                message.AppendLine("**create**: !create {color} {point value} {emoji} {requiresPoll(true/false)} {cardIfPollFails}");
                 message.AppendLine("**value**: !value {color} {new point value}");
                 message.AppendLine("**delete**: !delete {color}");
             }
@@ -294,7 +348,58 @@ namespace CardBot.Modules
         {
             return Context.Guild.Roles.First(r => r.Name == CardRoleAdmin).Members.Contains(user);
         }
+
+        public static Users GetDBUser(SocketUser mention, CardContext db)
+        {
+            Users u;
+            
+            u = db.Users.AsQueryable()
+                .Where(u => u.Name == mention.Username)
+                .FirstOrDefault();
+
+            if (null == u)
+            {
+                u = CreateUser(mention, db);
+            }
+
+            return u;
+        }
         
+        private static Users CreateUser(SocketUser sender, CardContext db)
+        {
+            try
+            {
+                var u = db.Users.Add(new Users
+                {
+                    Id = Guid.NewGuid(),
+                    Name = sender.Username
+                });
+
+                db.SaveChanges();
+
+                return u.Entity;
+            }
+            catch (Exception e)
+            {
+                Logger.Error(e);
+                return null;
+            }
+        }
+        
+        private Cards GetCard(Guid cardId, ulong serverId)
+        {
+            Cards card = null;
+            
+            using (var db = new CardContext())
+            {
+                card = db.Cards.AsQueryable()
+                    .Where(c => c.ServerId == serverId)
+                    .Where(c => c.Id == cardId)
+                    .FirstOrDefault();
+            }
+
+            return card;
+        }
         
         private Cards GetCard(string color, ulong serverId)
         {
@@ -311,25 +416,44 @@ namespace CardBot.Modules
             return card;
         }
         
-        private SocketUser GetUser(string user)
+        private SocketUser GetUser(string user, SocketCommandContext context)
         {
-            var mention = Context.Message.MentionedUsers.FirstOrDefault(x => x.Mention == user);
-            if (mention == null)
+            try
             {
-                var role = Context.Guild.Roles.Where(r => r.Name == CardRole).FirstOrDefault();
-                mention = Context.Guild.Users
-                    .Where(x => x.Username.Contains(user, StringComparison.CurrentCultureIgnoreCase) || x.Nickname.Contains(user, StringComparison.CurrentCultureIgnoreCase))
-                    .Where(x => x.Roles.Contains(role))
-                    .FirstOrDefault();
-            }
-            if (mention == null)
-            {
-                var splittedString = user.Split('@');
-                user = $"{splittedString[0]}@!{splittedString[1]}";
-                mention = Context.Message.MentionedUsers.FirstOrDefault(x => x.Mention == user);
-            }
+                var mention = Context.Message.MentionedUsers.FirstOrDefault(x => x.Mention == user);
+                if (mention == null)
+                {
+                    var role = Context.Guild.Roles.Where(r => r.Name == CardRole).FirstOrDefault();
+                    mention = Context.Guild.Users
+                        .Where(u => u.Roles.Contains(role))
+                        .Where(x => x.Username.Contains(user, StringComparison.CurrentCultureIgnoreCase))
+                        .FirstOrDefault();
+                }
 
-            return mention;
+                if (mention == null)
+                {
+                    var splittedString = user.Split('@');
+                    user = $"{splittedString[0]}@!{splittedString[1]}";
+                    mention = Context.Message.MentionedUsers.FirstOrDefault(x => x.Mention == user);
+                }
+
+                return mention;
+            }
+            catch (Exception e)
+            {
+                var channel = context.Guild.Channels.FirstOrDefault(c => c.Name == CardErrorChannel);
+                if (null == channel)
+                {
+                    Logger.Error(e);
+                }
+                else
+                {
+                    var text = (ISocketMessageChannel) channel;
+                    text.SendMessageAsync(e.Message);
+                }
+
+                return null;
+            }
         }
 
         private async Task AddCard(SocketUser user, Cards card, string reason)
@@ -348,9 +472,9 @@ namespace CardBot.Modules
 
             try
             {
-                var cardCount = Leaderboard.GiveCard(sender, user, reason, card, serverId);
-
+                var cardCount = Leaderboard.GiveCard(sender, user, reason, card, serverId, Context);
                 await ReplyAsync($"{user.Mention} now has {cardCount} {card.Name} cards.");
+                
             }
             catch (Exception e)
             {
@@ -363,7 +487,7 @@ namespace CardBot.Modules
 
         #region AdminCommands
         [Command("create")]
-        public async Task CreateCard(string name, int value, string emoji)
+        public async Task CreateCard(string name, int value, string emoji, string poll, string failedPollCard)
         {
             if (!IsAdminUser(Context.User))
             {
@@ -387,14 +511,37 @@ namespace CardBot.Modules
                     return;
                 }
             }
+
+            bool isPollCard = false;
+            Cards failedCard = null;
             
+            bool.TryParse(poll, out isPollCard);
+            if (isPollCard)
+            {
+                failedCard = GetCard(failedPollCard, serverId);
+                if (failedCard == null)
+                {
+                    await ReplyAsync($"Cannot find a {failedPollCard} card.  Has it been created?");
+                    return;
+                }
+            }
+            else
+            {
+                failedCard = new Cards()
+                {
+                    Id = Guid.Empty
+                };
+            }
+
             c = new Cards()
             {
                 Name = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(name),
                 Emoji = emoji,
                 Value = value,
                 Id = Guid.NewGuid(),
-                ServerId = serverId
+                ServerId = serverId,
+                FailedId = failedCard.Id,
+                Poll = isPollCard
             };
             
             var roleTag = Context.Guild.Roles.First(r => r.Name == CardRole).Mention;
@@ -405,7 +552,7 @@ namespace CardBot.Modules
 
             var polls = PollSingleton.Instance;
             polls.NewPoll(new Poll(
-                Context.User,
+                null,
                 PollType.CREATE,
                 Context,
                 message.Id,
@@ -443,7 +590,7 @@ namespace CardBot.Modules
             
             var polls = PollSingleton.Instance;
             polls.NewPoll(new Poll(
-                Context.User,
+                null,
                 PollType.DELETE,
                 Context,
                 message.Id,
@@ -483,7 +630,7 @@ namespace CardBot.Modules
             
             var polls = PollSingleton.Instance;
             polls.NewPoll(new Poll(
-                Context.User,
+                null,
                 PollType.VALUE,
                 Context,
                 message.Id,

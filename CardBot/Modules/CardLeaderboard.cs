@@ -7,6 +7,9 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using CardBot.Singletons;
+using Discord;
+using Discord.Commands;
 
 namespace CardBot.Modules
 {
@@ -14,26 +17,16 @@ namespace CardBot.Modules
     {
         private static NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
 
-        public int GiveCard(SocketUser sender, SocketUser user, string reason, Cards card, ulong serverId)
+        public int GiveCard(SocketUser sender, SocketUser user, string reason, Cards card, ulong serverId, SocketCommandContext context)
         {
             try
             {
                 using (var db = new CardContext())
                 {
-                    var giver = db.Users.AsQueryable().Where(u => u.Name == sender.Username).FirstOrDefault();
-                    var degenerate = db.Users.AsQueryable().Where(u => u.Name == user.Username).FirstOrDefault();
+                    var giver = Commands.GetDBUser(sender, db);
+                    var degenerate = Commands.GetDBUser(user, db);
                     var givenCard = db.Cards.AsQueryable().Where(c => c.Id == card.Id).FirstOrDefault();
 
-                    if (giver == null)
-                    {
-                        giver = CreateUser(sender, db);
-                    }
-
-                    if (degenerate == null)
-                    {
-                        degenerate = CreateUser(user, db);
-                    }
-                    
                     var newCard = new CardGivings
                     {
                         Id = Guid.NewGuid(),
@@ -63,7 +56,6 @@ namespace CardBot.Modules
             {
                 Logger.Error(e);
                 throw;
-                return 0;
             }
         }
 

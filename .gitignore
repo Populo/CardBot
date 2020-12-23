@@ -483,3 +483,5 @@ MigrationBackup/
 CardBot/Properties/launchSettings.json
 
 CardBot/Database.db
+
+CardBot/Database.db.bak

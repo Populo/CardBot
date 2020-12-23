@@ -40,7 +40,7 @@ namespace CardBot.Models
 #endif
         } }
         
-        public SocketUser Creator { get; }
+        public SocketUser Receiver { get; }
         public PollType Type { get; }
         public SocketCommandContext Context { get; }
         public ulong MessageId { get; }
@@ -49,9 +49,9 @@ namespace CardBot.Models
 
         public bool Majority => CountVotes();
 
-        public Poll(SocketUser creator, PollType type, SocketCommandContext context, ulong messageId, CardGivings cardGiving, Cards card)
+        public Poll(SocketUser receiver, PollType type, SocketCommandContext context, ulong messageId, CardGivings cardGiving, Cards card)
         {
-            Creator = creator;
+            Receiver = receiver;
             Type = type;
             Context = context;
             MessageId = messageId;
@@ -101,30 +101,17 @@ namespace CardBot.Models
         private bool GivePollCard()
         {
             var message = Context.Channel.GetMessageAsync(MessageId).Result;
+            var helper = new CardLeaderboard();
             try
             {
-                using (var db = new CardContext())
-                {
-                    var newGiving = new CardGivings()
-                    {
-                        Card = CardGiving.Card,
-                        CardId = CardGiving.CardId,
-                        CardReason = CardGiving.CardReason,
-                        Degenerate = CardGiving.Degenerate,
-                        DegenerateId = CardGiving.DegenerateId,
-                        Giver = CardGiving.Giver,
-                        GiverId = CardGiving.GiverId,
-                        Id = CardGiving.Id,
-                        ServerId = CardGiving.ServerId,
-                        TimeStamp = CardGiving.TimeStamp
-                    };
-                    
-                    db.CardGivings.Add(newGiving);
-                    
-                    db.SaveChanges();
-                    
-                    message.Channel.SendMessageAsync($"{Context.Message.MentionedUsers.First()} has been given a {newGiving.Card.Name} card.");
-                }
+                int totalCards = helper.GiveCard(Context.User, 
+                    Receiver, 
+                    CardGiving.CardReason,
+                    CardGiving.Card,
+                    CardGiving.ServerId, 
+                    Context);
+
+                message.Channel.SendMessageAsync($"{Receiver.Username} now has {totalCards} {CardGiving.Card.Name} cards.");
 
                 return true;
             }
@@ -217,7 +204,7 @@ namespace CardBot.Models
 
                     db.SaveChanges();
                     
-                    message.Channel.SendMessageAsync($"{Creator.Username}'s challenge has been executed.");
+                    message.Channel.SendMessageAsync($"{Context.User.Username}'s challenge has been executed.");
                 }
 
                 return true;

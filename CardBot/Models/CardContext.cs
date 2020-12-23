@@ -26,9 +26,7 @@ namespace CardBot.Models
         public string Emoji { get; set; }
         public int Value { get; set; }
         public bool Poll { get; set; }
-        
         public Guid FailedId { get; set; }
-        public Cards FailedCard { get; set; }
     }
 
     public class Users

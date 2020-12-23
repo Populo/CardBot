@@ -60,9 +60,6 @@ namespace CardBot.Migrations
                     b.Property<string>("Emoji")
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("FailedCardId")
-                        .HasColumnType("TEXT");
-
                     b.Property<Guid>("FailedId")
                         .HasColumnType("TEXT");
 
@@ -79,8 +76,6 @@ namespace CardBot.Migrations
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("FailedCardId");
 
                     b.ToTable("Cards");
                 });
@@ -118,13 +113,6 @@ namespace CardBot.Migrations
                         .HasForeignKey("GiverId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("CardBot.Models.Cards", b =>
-                {
-                    b.HasOne("CardBot.Models.Cards", "FailedCard")
-                        .WithMany()
-                        .HasForeignKey("FailedCardId");
                 });
 #pragma warning restore 612, 618
         }

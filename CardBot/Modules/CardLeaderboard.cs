@@ -23,20 +23,10 @@ namespace CardBot.Modules
             {
                 using (var db = new CardContext())
                 {
-                    var giver = db.Users.AsQueryable().Where(u => u.Name == sender.Username).FirstOrDefault();
-                    var degenerate = db.Users.AsQueryable().Where(u => u.Name == user.Username).FirstOrDefault();
+                    var giver = Commands.GetDBUser(sender, db);
+                    var degenerate = Commands.GetDBUser(user, db);
                     var givenCard = db.Cards.AsQueryable().Where(c => c.Id == card.Id).FirstOrDefault();
 
-                    if (giver == null)
-                    {
-                        giver = CreateUser(sender, db);
-                    }
-
-                    if (degenerate == null)
-                    {
-                        degenerate = CreateUser(user, db);
-                    }
-                    
                     var newCard = new CardGivings
                     {
                         Id = Guid.NewGuid(),
@@ -50,28 +40,6 @@ namespace CardBot.Modules
                         ServerId = serverId,
                         TimeStamp = DateTime.Now
                     };
-
-                    if (givenCard.Poll)
-                    {
-                        var roleTag = context.Guild.Roles.First(r => r.Name == Commands.CardRole).Mention;
-
-                        var message = context.Channel.SendMessageAsync($"{roleTag}: {context.User.Mention} is proposing to give {degenerate.Name} a {givenCard.Name} card worth {givenCard.Value} points.\n\n" + 
-                                                       $"Reason:```{newCard.CardReason}```\n" +
-                                                       $"Place your votes below.  The votes will be counted in {Poll.HOURS_OF_GIVE_POLL} hours.").Result;
-                        message.AddReactionsAsync(new[] { new Emoji("👍"), new Emoji("👎") });
-                        
-                        var ps = PollSingleton.Instance;
-                        ps.NewPoll(new Poll(
-                            sender,
-                            PollType.GIVE,
-                            context,
-                            message.Id,
-                            newCard,
-                            givenCard
-                        ));
-                        
-                        return -1;
-                    }
 
                     db.CardGivings.Add(newCard);
 

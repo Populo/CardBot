@@ -25,9 +25,9 @@ namespace CardBot.Singletons
             Polls = new List<Poll>();
             Timer = new Timer();
             #if DEBUG
-            Timer.Interval = 15 * 1000; // 15 seconds
+            Timer.Interval = 5 * 1000; // 15 seconds
             #else
-            Timer.Interval = 60 * 60 * 1000; // 1 hour
+            Timer.Interval = 60 * 1000; // 1 minute
             #endif            
             Timer.AutoReset = true;
             Timer.Elapsed += Timer_Elapsed;
@@ -35,7 +35,7 @@ namespace CardBot.Singletons
 
         private void Timer_Elapsed(object sender, ElapsedEventArgs e)
         {
-            Logger.Log(LogLevel.Info, "Timer Exec");
+            Logger.Log(LogLevel.Info, $"{DateTime.Now}: Timer Exec");
             var toExec = Polls.Where(c => c.Triggered).ToList();
 
             toExec.All(e => Polls.Remove(e));

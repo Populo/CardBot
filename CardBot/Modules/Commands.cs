@@ -545,8 +545,11 @@ namespace CardBot.Modules
             };
             
             var roleTag = Context.Guild.Roles.First(r => r.Name == CardRole).Mention;
-
-            var message = await ReplyAsync($"{roleTag}: {Context.User.Mention} is proposing to create a {c.Name} card worth {c.Value} points.\n\n" +
+            var failCardString = failedCard.Id == Guid.Empty ? "nothing." : $"a {failedCard.Name} card.";
+            var pollString = isPollCard
+                ? $"This card will require a poll to be given, if the poll fails the person will be given {failCardString}"
+                : "";
+            var message = await ReplyAsync($"{roleTag}: {Context.User.Mention} is proposing to create a {c.Name} card worth {c.Value} points. {pollString}\n\n" +
                                            $"Place your votes below.  The votes will be counted in 1 hour.");
             await message.AddReactionsAsync(new[] { new Emoji("👍"), new Emoji("👎") });
 

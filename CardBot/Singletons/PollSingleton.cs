@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Timers;
-using CardBot.Models;
-using CardBot.Modules;
+using CardBot.Bot.Models;
+using CardBot.Bot.Modules;
 using NLog;
 
-namespace CardBot.Singletons
+namespace CardBot.Bot.Singletons
 {
     public sealed class PollSingleton
     {
@@ -49,14 +49,14 @@ namespace CardBot.Singletons
                 else
                 {
                     var message = new StringBuilder();
-                    message.AppendLine($"{p.Context.User.Username}'s poll could not get a majority vote. :(");
+                    message.AppendLine($"{p.Command.User.Username}'s poll could not get a majority vote. :(");
                     if (p.Type == PollType.GIVE)
                     {
                         int totalCards = GiveFailingCard(p);
                         message.AppendLine(
                             $"{p.CardGiving.Degenerate.Name} has been given a {p.Card.Name} card instead of a {p.CardGiving.Card.Name}.  They now have {totalCards} {p.Card.Name} cards.");
                     }
-                    p.Context.Channel.SendMessageAsync(message.ToString());
+                    p.Command.Channel.SendMessageAsync(message.ToString());
                 }
             }
 
@@ -66,8 +66,8 @@ namespace CardBot.Singletons
         private int GiveFailingCard(Poll poll)
         {
             var helper = new CardLeaderboard();
-            return helper.GiveCard(poll.Context.User, poll.Receiver, poll.CardGiving.CardReason, poll.Card,
-                poll.CardGiving.ServerId, poll.Context);
+            return helper.GiveCard(poll.Command.User, poll.Receiver, poll.CardGiving.CardReason, poll.Card,
+                poll.CardGiving.ServerId, poll.Command);
         }
 
         public void NewPoll(Poll p)

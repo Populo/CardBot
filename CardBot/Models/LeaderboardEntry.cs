@@ -1,8 +1,9 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
-using CardBot.Modules;
+using CardBot.Data;
+using CardBot.Bot.Modules;
 
-namespace CardBot.Models
+namespace CardBot.Bot.Models
 {
     public class LeaderboardEntry
     {

@@ -1,4 +1,4 @@
-﻿namespace CardBot.Models
+﻿namespace CardBot.Bot.Models
 {
     public enum PollType
     {

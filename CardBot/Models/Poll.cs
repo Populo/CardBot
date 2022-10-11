@@ -1,20 +1,21 @@
 ﻿using System;
 using System.Linq;
-using CardBot.Modules;
+using CardBot.Bot.Modules;
+using CardBot.Data;
 using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore.Internal;
 using NLog;
 
-namespace CardBot.Models
+namespace CardBot.Bot.Models
 {
     public class Poll
     {
         public static int HOURS_OF_GIVE_POLL = 12;
-        
+
         private static NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
-        
+
         private readonly DateTime _startTime;
 
         private int PollHours
@@ -32,44 +33,42 @@ namespace CardBot.Models
         }
 
         public bool Triggered { get
-        {
+            {
 #if DEBUG
-            return _startTime.Add(new TimeSpan(0, 0, 10)) < DateTime.Now;
+                return _startTime.Add(new TimeSpan(0, 0, 10)) < DateTime.Now;
 #else
             return _startTime.Add(new TimeSpan(PollHours, 0, 0)) < DateTime.Now;
 #endif
-        } }
-        
+            } }
+
         public SocketUser Receiver { get; }
         public PollType Type { get; }
-        public SocketCommandContext Context { get; }
-        public ulong MessageId { get; }
+        public SocketSlashCommand Command { get; }
         public CardGivings CardGiving { get; private set; }
         public Cards Card { get; }
+        public SocketGuild Server { get; set; }
+
+        public int Yes { get; set; }
+        public int No { get; set; }
+
+        public Guid GivingId => CardGiving.Id;
 
         public bool Majority => CountVotes();
 
-        public Poll(SocketUser receiver, PollType type, SocketCommandContext context, ulong messageId, CardGivings cardGiving, Cards card)
+        public Poll(SocketUser receiver, PollType type, SocketSlashCommand command, CardGivings cardGiving, Cards card, SocketGuild server)
         {
             Receiver = receiver;
             Type = type;
-            Context = context;
-            MessageId = messageId;
+            Command = command;
             CardGiving = cardGiving;
             Card = card;
             _startTime = DateTime.Now;
+            Server = server;
         }
 
         private bool CountVotes()
         {
-            var message = Context.Channel.GetMessageAsync(MessageId).Result;
-
-            var reacts = message.Reactions;
-
-            var up = reacts.Keys.Where(e => e.Name == "👍").First();
-            var down = reacts.Keys.Where(e => e.Name == "👎").First();
-
-            return reacts[up].ReactionCount > reacts[down].ReactionCount;
+            return Yes > No;
         }
 
         public bool Execute()
@@ -100,27 +99,26 @@ namespace CardBot.Models
 
         private bool GivePollCard()
         {
-            var message = Context.Channel.GetMessageAsync(MessageId).Result;
             var helper = new CardLeaderboard();
             try
             {
-                int totalCards = helper.GiveCard(Context.User, 
+                int totalCards = helper.GiveCard(Command.User, 
                     Receiver, 
                     CardGiving.CardReason,
                     CardGiving.Card,
-                    CardGiving.ServerId, 
-                    Context);
+                    CardGiving.ServerId,
+                    Command);
 
-                message.Channel.SendMessageAsync($"{Receiver.Username} now has {totalCards} {CardGiving.Card.Name} cards.");
+                Command.RespondAsync($"{Receiver.Mention} now has {totalCards} {CardGiving.Card.Name} cards.");
 
                 return true;
             }
             catch (Exception e)
             {
-                var server = Context.Guild.Channels.Where(c => c.Name == Commands.CardErrorChannel).FirstOrDefault();
-                if (null != server)
+                var s = Server.Channels.Where(c => c.Name == Commands.CardErrorChannel).FirstOrDefault();
+                if (null != s)
                 {
-                    IMessageChannel channel = (IMessageChannel) server;
+                    IMessageChannel channel = (IMessageChannel) s;
                     channel.SendMessageAsync(e.Message);
                 }
 
@@ -135,23 +133,21 @@ namespace CardBot.Models
             {
                 using (var db = new CardContext())
                 {
-                    var message = Context.Channel.GetMessageAsync(MessageId).Result;
-
                     db.Cards.Add(Card);
                     
                     db.SaveChanges();
                     
-                    message.Channel.SendMessageAsync($"{Card.Name} card has been created with a value of {Card.Value}.");
+                    Command.RespondAsync($"{Card.Name} card has been created with a value of {Card.Value}.");
                 }
 
                 return true;
             }
             catch (Exception e)
             {
-                var server = Context.Guild.Channels.Where(c => c.Name == Commands.CardErrorChannel).FirstOrDefault();
-                if (null != server)
+                var s = Server.Channels.Where(c => c.Name == Commands.CardErrorChannel).FirstOrDefault();
+                if (null != s)
                 {
-                    IMessageChannel channel = (IMessageChannel) server;
+                    IMessageChannel channel = (IMessageChannel)s;
                     channel.SendMessageAsync(e.Message);
                 }
 
@@ -166,7 +162,6 @@ namespace CardBot.Models
             {
                 using (var db = new CardContext())
                 {
-                    var message = Context.Channel.GetMessageAsync(MessageId).Result;
                     Cards c = null;
                     if (null != Card)
                     {
@@ -177,7 +172,7 @@ namespace CardBot.Models
 
                         if (null == c)
                         {
-                            message.Channel.SendMessageAsync($"Cannot find {Card.Name} to delete it.");
+                            Command.RespondAsync($"Cannot find {Card.Name} to delete it.");
                             return false;
                         }
                     }
@@ -188,7 +183,7 @@ namespace CardBot.Models
                     
                     if (null == giving)
                     {
-                        message.Channel.SendMessageAsync($"Cannot find card {CardGiving.Id} to challenge.");
+                        Command.RespondAsync($"Cannot find card {CardGiving.Id} to challenge.");
                         return false;
                     }
 
@@ -204,17 +199,17 @@ namespace CardBot.Models
 
                     db.SaveChanges();
                     
-                    message.Channel.SendMessageAsync($"{Context.User.Username}'s challenge has been executed.");
+                    Command.RespondAsync($"{Command.User.Username}'s challenge has been executed.");
                 }
 
                 return true;
             }
             catch (Exception e)
             {
-                var server = Context.Guild.Channels.Where(c => c.Name == Commands.CardErrorChannel).FirstOrDefault();
-                if (null != server)
+                var s = Server.Channels.Where(c => c.Name == Commands.CardErrorChannel).FirstOrDefault();
+                if (null != s)
                 {
-                    IMessageChannel channel = (IMessageChannel) server;
+                    IMessageChannel channel = (IMessageChannel)s;
                     channel.SendMessageAsync(e.Message);
                 }
 
@@ -228,9 +223,7 @@ namespace CardBot.Models
             try
             {
                 using (var db = new CardContext())
-                {
-                    var message = Context.Channel.GetMessageAsync(MessageId).Result;
-                    
+                {                    
                     var c = db.Cards
                         .AsQueryable()
                         .Where(card => card.Id == Card.Id)
@@ -238,7 +231,7 @@ namespace CardBot.Models
 
                     if (null == c)
                     {
-                        message.Channel.SendMessageAsync($"Cannot find {Card.Name} to delete it.");
+                        Command.RespondAsync($"Cannot find {Card.Name} to delete it.");
                         return false;
                     }
 
@@ -248,17 +241,17 @@ namespace CardBot.Models
 
                     db.SaveChanges();
                     
-                    message.Channel.SendMessageAsync($"{c.Name} card has been deleted.");
+                    Command.RespondAsync($"{c.Name} card has been deleted.");
                 }
 
                 return true;
             }
             catch (Exception e)
             {
-                var server = Context.Guild.Channels.Where(c => c.Name == Commands.CardErrorChannel).FirstOrDefault();
-                if (null != server)
+                var s = Server.Channels.Where(c => c.Name == Commands.CardErrorChannel).FirstOrDefault();
+                if (null != s)
                 {
-                    IMessageChannel channel = (IMessageChannel) server;
+                    IMessageChannel channel = (IMessageChannel)s;
                     channel.SendMessageAsync(e.Message);
                 }
 
@@ -270,9 +263,7 @@ namespace CardBot.Models
         private bool ModifyValue()
         {
             try
-            {
-                var message = Context.Channel.GetMessageAsync(MessageId).Result;
-                
+            {                
                 using (var db = new CardContext())
                 {
                     var c = db.Cards
@@ -282,7 +273,7 @@ namespace CardBot.Models
 
                     if (null == c)
                     {
-                        message.Channel.SendMessageAsync($"Cannot find {Card.Name} to modify it.");
+                        Command.RespondAsync($"Cannot find {Card.Name} to modify it.");
                         return false;
                     }
 
@@ -292,17 +283,17 @@ namespace CardBot.Models
 
                     db.SaveChanges();
                     
-                    message.Channel.SendMessageAsync($"{c.Name}'s new value is {c.Value}");
+                    Command.RespondAsync($"{c.Name}'s new value is {c.Value}");
                 }
 
                 return true;
             }
             catch (Exception e)
             {
-                var server = Context.Guild.Channels.Where(c => c.Name == Commands.CardErrorChannel).FirstOrDefault();
-                if (null != server)
+                var s = Server.Channels.Where(c => c.Name == Commands.CardErrorChannel).FirstOrDefault();
+                if (null != s)
                 {
-                    IMessageChannel channel = (IMessageChannel) server;
+                    IMessageChannel channel = (IMessageChannel)s;
                     channel.SendMessageAsync(e.Message);
                 }
 

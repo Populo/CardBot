@@ -1,4 +1,4 @@
-﻿using CardBot.Models;
+﻿using CardBot.Bot.Models;
 using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
@@ -7,9 +7,11 @@ using NLog;
 using System;
 using System.Reflection;
 using System.Threading.Tasks;
-using CardBot.Singletons;
+using CardBot.Bot.Singletons;
+using CardBot.Bot.Modules;
+using System.Linq;
 
-namespace CardBot
+namespace CardBot.Bot
 {
     class Program
     {
@@ -65,6 +67,8 @@ namespace CardBot
                 .BuildServiceProvider();
 
             _client.Log += BotLog;
+            _client.Ready += _client_Ready;
+            _client.SlashCommandExecuted += _client_SlashCommandExecuted;
 
             await RegisterCommandsAsync();
 
@@ -72,9 +76,37 @@ namespace CardBot
 
             await _client.StartAsync();
 
-            await _client.SetGameAsync("for degenerates", null, ActivityType.Watching);
+            //await _client.SetGameAsync("for degenerates", null, ActivityType.Watching);
+            await _client.SetGameAsync("TESTING", null, ActivityType.Competing);
 
             await Task.Delay(-1);
+        }
+
+        private async Task _client_SlashCommandExecuted(SocketSlashCommand arg)
+        {
+            if (arg.Data.Name == "card")
+            {
+                await HandleCardCommand(arg);
+            } 
+            else
+            {
+                arg.RespondAsync("uwu");
+            }
+
+            return;
+        }
+
+        private async Task HandleCardCommand(SocketSlashCommand arg) => SlashCommandWorker.GiveCard(arg, _client.GetGuild(arg.GuildId.Value));
+
+        private async Task _client_Ready()
+        {
+            // globals
+            await _client.CreateGlobalApplicationCommandAsync(SlashCommands.InitCardCreateCommand().Build());
+
+            // server specific
+            SlashCommands.InitCardSlashCommand(_client);
+            SlashCommands.InitChallengeSlashCommand(_client);
+
         }
 
         private async Task RegisterCommandsAsync()

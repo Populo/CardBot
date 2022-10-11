@@ -1,4 +1,4 @@
-﻿using CardBot.Models;
+﻿using CardBot.Bot.Models;
 using Discord.WebSocket;
 using System;
 using System.Collections;
@@ -7,17 +7,18 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Linq;
 using System.Text;
-using CardBot.Singletons;
+using CardBot.Bot.Singletons;
 using Discord;
 using Discord.Commands;
+using CardBot.Data;
 
-namespace CardBot.Modules
+namespace CardBot.Bot.Modules
 {
     public class CardLeaderboard
     {
         private static NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
 
-        public int GiveCard(SocketUser sender, SocketUser user, string reason, Cards card, ulong serverId, SocketCommandContext context)
+        public int GiveCard(SocketUser sender, SocketUser user, string reason, Cards card, ulong serverId, SocketSlashCommand command)
         {
             try
             {
@@ -38,7 +39,8 @@ namespace CardBot.Modules
                         Degenerate = degenerate,
                         CardReason = reason,
                         ServerId = serverId,
-                        TimeStamp = DateTime.Now
+                        TimeStamp = DateTime.Now,
+                        MessageId = command.Id
                     };
 
                     db.CardGivings.Add(newCard);
@@ -80,7 +82,7 @@ namespace CardBot.Modules
             }
         }
 
-        public string BuildLeaderboard(ulong serverId)
+        public static string BuildLeaderboard(ulong serverId)
         {
             StringBuilder message = new StringBuilder();
             
@@ -109,7 +111,7 @@ namespace CardBot.Modules
             message.Append("Current Leaderboard:\n```");
 
             int longestUser = users.OrderByDescending(u => u.Name.Length).First().Name.Length + 1;
-            var players = BuildPlayerInfo(givings, users, cards);
+            var players = CardLeaderboard.BuildPlayerInfo(givings, users, cards);
 
             string userHeader = "User";
             string scoreHeader = "Score";
@@ -153,7 +155,7 @@ namespace CardBot.Modules
             return message.ToString();
         }
 
-        private List<LeaderboardEntry> BuildPlayerInfo(List<CardGivings> givings, List<Users> users, List<Cards> cards)
+        private static List<LeaderboardEntry> BuildPlayerInfo(List<CardGivings> givings, List<Users> users, List<Cards> cards)
         {
             List<LeaderboardEntry> entries = new List<LeaderboardEntry>();
 
@@ -178,7 +180,7 @@ namespace CardBot.Modules
             return entries;
         }
 
-        public string GetHistory(string user, int toShow, ulong serverId)
+        public static string GetHistory(string user, int toShow, ulong serverId)
         {
             string message = $"History for {user}:\n";
 

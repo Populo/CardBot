@@ -1,4 +1,4 @@
-﻿namespace CardBot.Modules
+﻿namespace CardBot.Bot.Modules
 {
     // https://stackoverflow.com/questions/8200661/how-to-align-string-in-fixed-length-string
     public static class StringExtensions

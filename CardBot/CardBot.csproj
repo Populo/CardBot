@@ -13,7 +13,7 @@
 
   <ItemGroup>
     <PackageReference Include="DanielStout.AsciiTableFormatter" Version="1.1.0" />
-    <PackageReference Include="Discord.Net" Version="3.8.1" />
+    <PackageReference Include="Discord.Net" Version="3.6.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="6.0.10" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="6.0.10" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="6.0.10">
